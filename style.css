@@ -794,3 +794,87 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* CALENDAR ACTIONS STYLING */
+.calendar-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cal-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  color: var(--color-text-muted);
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-main);
+  transition: var(--transition-smooth);
+  text-decoration: none;
+}
+
+.cal-btn:hover {
+  color: var(--color-text-main);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cal-btn.google-cal:hover {
+  border-color: #4285f4;
+  color: #4285f4;
+  background: rgba(66, 133, 244, 0.08);
+  box-shadow: 0 0 10px rgba(66, 133, 244, 0.15);
+}
+
+.cal-btn.apple-cal:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(0, 242, 254, 0.08);
+  box-shadow: var(--shadow-glow);
+}
+
+/* Success Button Style (Green Glow for All ICS) */
+.util-btn.success-btn {
+  background: rgba(0, 255, 135, 0.08);
+  border-color: rgba(0, 255, 135, 0.2);
+  color: var(--color-success);
+  font-weight: 700;
+  gap: 8px;
+}
+
+.util-btn.success-btn:hover {
+  background: rgba(0, 255, 135, 0.15);
+  border-color: var(--color-success);
+  color: var(--color-success);
+  box-shadow: 0 0 12px rgba(0, 255, 135, 0.2);
+}
+
+/* Bracket mini calendar actions */
+.bracket-card-cal-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bracket-card-cal-actions a,
+.ical-mini-btn {
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: var(--transition-smooth);
+}
+
+.bracket-card-cal-actions a:hover {
+  color: #4285f4;
+}
+
+.ical-mini-btn:hover {
+  color: var(--color-primary);
+}

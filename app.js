@@ -1,4 +1,4 @@
-// app.js - W杯2026 試合日程＆お気に入り確認ロジック
+// app.js - W杯2026 試合日程＆お気に入り確認・カレンダー連携ロジック
 
 document.addEventListener("DOMContentLoaded", () => {
   // Load data from global W杯Data
@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const matchesList = document.getElementById("matches-list");
   const favoritesList = document.getElementById("favorites-list");
   const statsFavCount = document.getElementById("stats-fav-count");
+  const downloadAllIcsBtn = document.getElementById("download-all-ics");
 
   // --- COUNTDOWN TIMER ---
   const openingTime = new Date("2026-06-12T04:00:00+09:00").getTime();
@@ -84,6 +85,96 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- SAVE & UPDATE FAVORITES ---
   function updateFavoritesStats() {
     statsFavCount.textContent = favorites.length;
+    
+    // Toggle "Download All" button visibility in Favorites Tab
+    if (favorites.length > 0) {
+      downloadAllIcsBtn.style.display = "inline-flex";
+    } else {
+      downloadAllIcsBtn.style.display = "none";
+    }
+  }
+
+  // --- CALENDAR INTEGRATION HELPERS ---
+  
+  // Helper to parse "MM/DD" and "HH:mm" as JST Date
+  function getJstMatchDate(dateStr, timeStr) {
+    const [month, day] = dateStr.split("/").map(Number);
+    const [hour, min] = timeStr.split(":").map(Number);
+    // Month is 0-indexed in JS Date (Jan = 0, June = 5, July = 6)
+    const monthIndex = month - 1;
+    
+    // Format JST Date String (e.g., 2026-06-12T04:00:00+09:00)
+    const year = 2026;
+    const pad = (n) => String(n).padStart(2, "0");
+    
+    const formattedIso = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(min)}:00+09:00`;
+    return new Date(formattedIso);
+  }
+
+  // Format Date to UTC string YYYYMMDDTHHMMSSZ for Google/iCal
+  function formatUtcForCalendar(date) {
+    return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  }
+
+  // Generate Google Calendar Add URL
+  function getGoogleCalendarUrl(match) {
+    const start = getJstMatchDate(match.date, match.time);
+    const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // assume 2 hours match length
+    
+    const dates = `${formatUtcForCalendar(start)}/${formatUtcForCalendar(end)}`;
+    const title = `🏆 [W杯] ${match.teamA} vs ${match.teamB}`;
+    
+    let groupLabel = match.group ? `${match.group}組` : match.stage;
+    const description = `FIFAワールドカップ2026 - ${match.stage} (${groupLabel})\nキックオフ時間: 日本時間 ${match.date}(${match.day}) ${match.time}`;
+    
+    return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dates}&details=${encodeURIComponent(description)}`;
+  }
+
+  // Generate iCal ICS file content and trigger download
+  function downloadIcsFile(matches, filename) {
+    const pad = (n) => String(n).padStart(2, "0");
+    const nowUtc = formatUtcForCalendar(new Date());
+    
+    let icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//W杯2026日程//NONSGML v1.0//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH"
+    ];
+
+    matches.forEach(match => {
+      const start = getJstMatchDate(match.date, match.time);
+      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      
+      const startStr = formatUtcForCalendar(start);
+      const endStr = formatUtcForCalendar(end);
+      
+      const title = `🏆 [W杯] ${match.teamA} vs ${match.teamB}`;
+      let groupLabel = match.group ? `${match.group}組` : match.stage;
+      const description = `FIFAワールドカップ2026 - ${match.stage} (${groupLabel})\\n日本時間: ${match.date}(${match.day}) ${match.time}`;
+      
+      icsContent.push(
+        "BEGIN:VEVENT",
+        `UID:${match.id}_2026@worldcup-schedule.net`,
+        `DTSTAMP:${nowUtc}`,
+        `DTSTART:${startStr}`,
+        `DTEND:${endStr}`,
+        `SUMMARY:${title}`,
+        `DESCRIPTION:${description}`,
+        "END:VEVENT"
+      );
+    });
+
+    icsContent.push("END:VCALENDAR");
+
+    const blob = new Blob([icsContent.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   // --- MATCH CARD RENDERING ---
@@ -101,6 +192,9 @@ document.addEventListener("DOMContentLoaded", () => {
     card.dataset.id = match.id;
     
     let groupLabel = match.group ? `${match.group}組` : match.stage;
+    
+    // Google Calendar URL
+    const googleUrl = getGoogleCalendarUrl(match);
     
     card.innerHTML = `
       <div class="match-card-header">
@@ -122,6 +216,15 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="team-name">${teamB}</span>
           </div>
         </div>
+        
+        <div class="calendar-actions">
+          <a href="${googleUrl}" target="_blank" class="cal-btn google-cal" title="Googleカレンダーに追加">
+            <i class="fa-brands fa-google"></i> Google追加
+          </a>
+          <button class="cal-btn apple-cal" data-action="ical" title="iPhone/Appleカレンダーに登録">
+            <i class="fa-regular fa-calendar-plus"></i> カレンダー登録 (.ics)
+          </button>
+        </div>
       </div>
     `;
     
@@ -130,6 +233,12 @@ document.addEventListener("DOMContentLoaded", () => {
     favBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleFavorite(match.id);
+    });
+
+    // Bind individual iCal download event
+    const icalBtn = card.querySelector('[data-action="ical"]');
+    icalBtn.addEventListener("click", () => {
+      downloadIcsFile([match], `w杯2026_${match.teamA}_vs_${match.teamB}.ics`);
     });
     
     return card;
@@ -257,6 +366,14 @@ document.addEventListener("DOMContentLoaded", () => {
     renderMatchesList();
   });
 
+  // --- DOWNLOAD ALL ICS HANDLER ---
+  downloadAllIcsBtn.addEventListener("click", () => {
+    const favMatches = [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].filter(m => favorites.includes(m.id));
+    if (favMatches.length === 0) return;
+    
+    downloadIcsFile(favMatches, "w杯2026_お気に入り観戦日程.ics");
+  });
+
   // --- RENDER BRACKET VIEW TAB (STATIC) ---
   function renderBracket() {
     const rounds = {
@@ -278,9 +395,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const flagA = TEAMS[match.teamA]?.flag || "🏳️";
       const flagB = TEAMS[match.teamB]?.flag || "🏳️";
       
+      const googleUrl = getGoogleCalendarUrl(match);
+      
       node.innerHTML = `
         <div class="bracket-match-info">
           <span>No.${match.matchNum} | ${match.date} ${match.time}</span>
+          <div class="bracket-card-cal-actions">
+            <a href="${googleUrl}" target="_blank" title="Googleカレンダーに追加"><i class="fa-brands fa-google"></i></a>
+            <span class="ical-mini-btn" data-action="ical-mini" title="カレンダー登録 (.ics)"><i class="fa-regular fa-calendar-plus"></i></span>
+          </div>
         </div>
         <div class="bracket-card">
           <div class="bracket-team-slot placeholder">
@@ -291,6 +414,11 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
       `;
+
+      // Bind iCal for bracket nodes
+      node.querySelector('[data-action="ical-mini"]').addEventListener("click", () => {
+        downloadIcsFile([match], `w杯2026_${match.teamA}_vs_${match.teamB}.ics`);
+      });
 
       return node;
     }
