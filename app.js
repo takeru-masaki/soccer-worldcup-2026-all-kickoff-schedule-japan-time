@@ -484,10 +484,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const idCacheKey = `wc_tid_${team.nameEn}`;
     let teamId = localStorage.getItem(idCacheKey);
     if (!teamId) {
-      const res = await fetch(`${API_BASE}/teams?name=${encodeURIComponent(team.nameEn)}&type=national`, { headers });
+      const res = await fetch(`${API_BASE}/teams?name=${encodeURIComponent(team.nameEn)}`, { headers });
       const data = await res.json();
-      teamId = data.response?.[0]?.team?.id?.toString();
-      if (!teamId) throw new Error(`チームが見つかりませんでした: ${team.nameEn}`);
+      // APIエラーチェック
+      if (data.errors && Object.keys(data.errors).length > 0) {
+        throw new Error(`APIエラー: ${JSON.stringify(data.errors)}`);
+      }
+      // type=National の国代表チームを優先、なければ先頭を使用
+      const entry = data.response?.find(r => r.team?.type === 'National') ?? data.response?.[0];
+      teamId = entry?.team?.id?.toString();
+      if (!teamId) throw new Error(`チームが見つかりませんでした: ${team.nameEn} (results: ${data.results})`);
       localStorage.setItem(idCacheKey, teamId);
     }
 
