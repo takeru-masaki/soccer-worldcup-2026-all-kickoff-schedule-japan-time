@@ -48,6 +48,7 @@
           <button class="nav-btn active" data-tab="schedule"><i class="fa-solid fa-calendar-days"></i> 試合日程</button>
           <button class="nav-btn" data-tab="bracket"><i class="fa-solid fa-diagram-project"></i> トーナメント表</button>
           <button class="nav-btn" data-tab="favorites"><i class="fa-solid fa-star"></i> お気に入り</button>
+          <button class="nav-btn" data-tab="players"><i class="fa-solid fa-users"></i> 選手情報</button>
         </nav>
         
         <div class="utility-controls">
@@ -172,6 +173,27 @@
       
     </main>
 
+      <!-- TAB 4: PLAYERS -->
+      <section class="tab-panel" id="tab-players">
+        <div class="players-intro glass-panel">
+          <h3><i class="fa-solid fa-users"></i> W杯2026 登録選手情報</h3>
+          <p>主要国のW杯2026登録スカッドです。チームを選択して選手一覧を確認できます。</p>
+          <div id="api-key-notice" class="api-key-notice" style="display:none;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            APIキーが未設定です。<code>app.js</code> 内の <code>PLAYERS_API_KEY</code> に取得したAPIキーを入力してください。
+            (<a href="https://dashboard.api-football.com/register" target="_blank" style="color:#fbbf24">無料登録はこちら</a>)
+          </div>
+        </div>
+
+        <div class="team-selector-grid" id="team-selector-grid">
+          <!-- JS が生成 -->
+        </div>
+
+        <div id="players-content">
+          <!-- 選手カード表示エリア -->
+        </div>
+      </section>
+
     <!-- Footer -->
     <footer class="app-footer">
       <p>&copy; 2026 FIFA World Cup Match Schedule. Created for Soccer Fans.</p>
@@ -180,6 +202,7 @@
 
   <!-- Scripts -->
   <script src="data.js?v=3"></script>
+  <script src="config.js"></script>
   <script src="app.js?v=3"></script>
 </body>
 </html>

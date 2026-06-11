@@ -192,8 +192,22 @@ const KNOCKOUT_MATCHES = [
   { id: "ko-32", matchNum: 32, stage: "決勝", date: "7/20", day: "月", time: "4:00", label: "No.29の勝者 vs No.30の勝者", placeholderA: "No.29の勝者", placeholderB: "No.30の勝者", teamA: "No.29の勝者", teamB: "No.30の勝者", prevMatchA: 29, prevMatchB: 30 }
 ];
 
+const MAJOR_TEAMS = [
+  { name: "日本",       nameEn: "Japan",        flag: "🇯🇵" },
+  { name: "ブラジル",   nameEn: "Brazil",       flag: "🇧🇷" },
+  { name: "アルゼンチン", nameEn: "Argentina",  flag: "🇦🇷" },
+  { name: "フランス",   nameEn: "France",       flag: "🇫🇷" },
+  { name: "ドイツ",     nameEn: "Germany",      flag: "🇩🇪" },
+  { name: "スペイン",   nameEn: "Spain",        flag: "🇪🇸" },
+  { name: "イングランド", nameEn: "England",    flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+  { name: "ポルトガル", nameEn: "Portugal",     flag: "🇵🇹" },
+  { name: "オランダ",   nameEn: "Netherlands",  flag: "🇳🇱" },
+  { name: "韓国",       nameEn: "Korea Republic", flag: "🇰🇷" },
+];
+
 window.W杯Data = {
   TEAMS,
   GROUP_STAGE_MATCHES,
-  KNOCKOUT_MATCHES
+  KNOCKOUT_MATCHES,
+  MAJOR_TEAMS
 };

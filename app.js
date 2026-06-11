@@ -78,6 +78,8 @@ document.addEventListener("DOMContentLoaded", () => {
         renderBracket();
       } else if (activeTab === "favorites") {
         renderFavoritesList();
+      } else if (activeTab === "players") {
+        renderPlayersTab();
       }
     });
   });
@@ -451,6 +453,167 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
     rounds.finals.appendChild(championNode);
+  }
+
+  // --- PLAYERS TAB ---
+  const { MAJOR_TEAMS } = window.W杯Data;
+  const API_BASE = 'https://v3.football.api-sports.io';
+  let selectedTeamIndex = null;
+
+  function getApiKey() {
+    return window.APP_CONFIG?.PLAYERS_API_KEY || '';
+  }
+
+  function posInfo(position) {
+    if (!position) return { label: '—', cls: 'df' };
+    const p = position.toLowerCase();
+    if (p === 'goalkeeper') return { label: 'GK', cls: 'gk' };
+    if (p === 'defender')   return { label: 'DF', cls: 'df' };
+    if (p === 'midfielder') return { label: 'MF', cls: 'mf' };
+    if (p === 'attacker' || p === 'forward') return { label: 'FW', cls: 'fw' };
+    return { label: position.substring(0, 2).toUpperCase(), cls: 'df' };
+  }
+
+  async function fetchTeamData(team) {
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_NOT_SET');
+
+    const headers = { 'x-apisports-key': apiKey };
+
+    // チームIDをキャッシュから取得、なければ検索
+    const idCacheKey = `wc_tid_${team.nameEn}`;
+    let teamId = localStorage.getItem(idCacheKey);
+    if (!teamId) {
+      const res = await fetch(`${API_BASE}/teams?name=${encodeURIComponent(team.nameEn)}&type=national`, { headers });
+      const data = await res.json();
+      teamId = data.response?.[0]?.team?.id?.toString();
+      if (!teamId) throw new Error(`チームが見つかりませんでした: ${team.nameEn}`);
+      localStorage.setItem(idCacheKey, teamId);
+    }
+
+    // スカッドキャッシュ確認（7日間有効）
+    const squadCacheKey = `wc_squad_${teamId}`;
+    const cachedRaw = localStorage.getItem(squadCacheKey);
+    if (cachedRaw) {
+      const { data: cached, ts } = JSON.parse(cachedRaw);
+      if (Date.now() - ts < 7 * 24 * 60 * 60 * 1000) return cached;
+    }
+
+    // スカッドと選手詳細を並行取得
+    const [squadRes, detailRes] = await Promise.all([
+      fetch(`${API_BASE}/players/squads?team=${teamId}`, { headers }),
+      fetch(`${API_BASE}/players?team=${teamId}&season=2026`, { headers })
+    ]);
+    const squadData  = await squadRes.json();
+    const detailData = await detailRes.json();
+
+    const squad = squadData.response?.[0]?.players || [];
+
+    // 所属クラブマップ: player_id → club_name
+    const clubMap = {};
+    detailData.response?.forEach(entry => {
+      const tid = parseInt(teamId);
+      // 国内リーグ or カップ戦で、代表以外のチームを所属クラブとして採用
+      const clubStat = entry.statistics?.find(s =>
+        s.team.id !== tid && s.league?.country !== 'World'
+      );
+      clubMap[entry.player.id] = clubStat?.team?.name || null;
+    });
+
+    const players = squad
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        age: p.age,
+        number: p.number,
+        position: p.position,
+        photo: p.photo,
+        club: clubMap[p.id] || null
+      }))
+      .sort((a, b) => (a.number ?? 99) - (b.number ?? 99));
+
+    localStorage.setItem(squadCacheKey, JSON.stringify({ data: players, ts: Date.now() }));
+    return players;
+  }
+
+  function renderPlayersTab() {
+    const grid    = document.getElementById('team-selector-grid');
+    const content = document.getElementById('players-content');
+    const notice  = document.getElementById('api-key-notice');
+
+    // APIキー未設定の警告
+    notice.style.display = getApiKey() ? 'none' : 'block';
+
+    if (grid.childElementCount > 0) return; // 初回のみ生成
+
+    MAJOR_TEAMS.forEach((team, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'team-select-btn';
+      btn.innerHTML = `<span class="ts-flag">${team.flag}</span><span class="ts-name">${team.name}</span>`;
+      btn.addEventListener('click', () => selectTeam(idx, btn, content));
+      grid.appendChild(btn);
+    });
+  }
+
+  async function selectTeam(idx, btn, content) {
+    document.querySelectorAll('.team-select-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTeamIndex = idx;
+    const team = MAJOR_TEAMS[idx];
+
+    if (!getApiKey()) {
+      content.innerHTML = `<div class="players-error"><i class="fa-solid fa-key"></i><br><br>APIキーが設定されていません。<br><code>config.js</code> の <code>PLAYERS_API_KEY</code> にキーを入力してください。</div>`;
+      return;
+    }
+
+    content.innerHTML = `<div class="players-loading"><i class="fa-solid fa-circle-notch fa-spin"></i>${team.flag} ${team.name} の選手情報を取得中...</div>`;
+
+    try {
+      const players = await fetchTeamData(team);
+
+      if (!players.length) {
+        content.innerHTML = `<div class="players-error">選手データが見つかりませんでした。</div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="players-section-header">
+          <span class="team-flag-lg">${team.flag}</span>
+          <span class="team-name-lg">${team.name}</span>
+          <span class="player-count">${players.length} 選手</span>
+        </div>
+        <div class="players-grid" id="players-grid"></div>
+      `;
+
+      const pgrid = document.getElementById('players-grid');
+      players.forEach(p => {
+        const pos = posInfo(p.position);
+        const card = document.createElement('div');
+        card.className = 'player-card';
+        card.innerHTML = `
+          ${p.photo
+            ? `<img class="player-photo" src="${p.photo}" alt="${p.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+               <div class="player-photo-placeholder" style="display:none"><i class="fa-solid fa-user"></i></div>`
+            : `<div class="player-photo-placeholder"><i class="fa-solid fa-user"></i></div>`
+          }
+          <div class="player-number">${p.number ?? '—'}</div>
+          <div class="player-info">
+            <div class="player-name">${p.name}</div>
+            <div class="player-meta">
+              <span class="pos-badge ${pos.cls}">${pos.label}</span>
+              <span class="player-age">${p.age ? p.age + '歳' : '—'}</span>
+            </div>
+            ${p.club ? `<span class="player-club"><i class="fa-solid fa-shirt" style="font-size:9px;margin-right:4px;opacity:0.5"></i>${p.club}</span>` : ''}
+          </div>
+        `;
+        pgrid.appendChild(card);
+      });
+    } catch (err) {
+      const msg = err.message === 'API_KEY_NOT_SET'
+        ? 'APIキーが設定されていません。'
+        : `取得エラー: ${err.message}`;
+      content.innerHTML = `<div class="players-error"><i class="fa-solid fa-triangle-exclamation"></i><br><br>${msg}</div>`;
+    }
   }
 
   // Initial Load
