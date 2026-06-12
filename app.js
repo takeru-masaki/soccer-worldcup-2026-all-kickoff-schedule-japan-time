@@ -459,21 +459,21 @@ document.addEventListener("DOMContentLoaded", () => {
     rounds.finals.appendChild(championNode);
   }
 
-  // --- STANDINGS & RESULTS (football-data.org) ---
-  const FD_BASE = 'https://api.football-data.org/v4';
-  const FIXTURES_TTL  = 5  * 60 * 1000;
-  const STANDINGS_TTL = 30 * 60 * 1000;
+  // --- STANDINGS & RESULTS (ESPN unofficial API — no key, CORS-safe) ---
+  const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
+  const FIXTURES_TTL = 5 * 60 * 1000;
 
   // data.js の nameEn → 日本語名マップ
   const nameEnToJa = {};
   Object.entries(TEAMS).forEach(([ja, d]) => { nameEnToJa[d.nameEn] = ja; });
 
-  // football-data.org 固有の英語名差異を吸収
-  const FD_ALIASES = {
+  // ESPN 固有の英語名差異を吸収
+  const ESPN_ALIASES = {
+    'United States': 'アメリカ',
+    'USA': 'アメリカ',
+    'Türkiye': 'トルコ',
     'Korea Republic': '韓国',
     'Republic of Korea': '韓国',
-    'United States': 'アメリカ',
-    'Türkiye': 'トルコ',
     'Bosnia-Herzegovina': 'ボスニア・ヘルツェゴビナ',
     'Congo DR': 'DRコンゴ',
     "Côte d'Ivoire": 'コートジボワール',
@@ -481,23 +481,17 @@ document.addEventListener("DOMContentLoaded", () => {
     'IR Iran': 'イラン',
   };
 
-  function resolveFdName(fdName) {
-    return FD_ALIASES[fdName] || nameEnToJa[fdName] || fdName;
+  function resolveEspnName(name) {
+    return ESPN_ALIASES[name] || nameEnToJa[name] || name;
   }
 
-  function getFdKey() {
-    return window.APP_CONFIG?.FOOTBALL_DATA_KEY || '';
-  }
-
-  async function fdApiGet(path, cacheKey, ttl) {
+  async function espnGet(path, cacheKey, ttl) {
     const raw = localStorage.getItem(cacheKey);
     if (raw) {
       const { data, ts } = JSON.parse(raw);
       if (Date.now() - ts < ttl) return data;
     }
-    const key = getFdKey();
-    if (!key) throw new Error('FD_KEY_NOT_SET');
-    const res = await fetch(`${FD_BASE}${path}`, { headers: { 'X-Auth-Token': key } });
+    const res = await fetch(`${ESPN_BASE}${path}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     localStorage.setItem(cacheKey, JSON.stringify({ data: json, ts: Date.now() }));
@@ -505,23 +499,26 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchAllFixtures() {
-    const data = await fdApiGet('/competitions/WC/matches', 'wc_fd_matches', FIXTURES_TTL);
-    return data.matches || [];
+    const data = await espnGet(
+      '/scoreboard?dates=20260612-20260719&limit=200',
+      'wc_espn_events', FIXTURES_TTL
+    );
+    return data.events || [];
   }
 
-  async function fetchStandings() {
-    const data = await fdApiGet('/competitions/WC/standings', 'wc_fd_standings', STANDINGS_TTL);
-    return (data.standings || []).filter(s => s.type === 'TOTAL');
-  }
-
-  function buildFixtureMap(matches) {
+  function buildFixtureMap(events) {
     const map = {};
-    matches.forEach(m => {
-      const jaH = resolveFdName(m.homeTeam?.name);
-      const jaA = resolveFdName(m.awayTeam?.name);
+    events.forEach(ev => {
+      const comp = ev.competitions?.[0];
+      if (!comp) return;
+      const home = comp.competitors?.find(c => c.homeAway === 'home');
+      const away = comp.competitors?.find(c => c.homeAway === 'away');
+      if (!home?.team || !away?.team) return;
+      const jaH = resolveEspnName(home.team.displayName);
+      const jaA = resolveEspnName(away.team.displayName);
       if (jaH && jaA) {
-        map[`${jaH}||${jaA}`] = m;
-        map[`${jaA}||${jaH}`] = m;
+        map[`${jaH}||${jaA}`] = ev;
+        map[`${jaA}||${jaH}`] = ev;
       }
     });
     return map;
@@ -532,13 +529,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadFixtureMap(forceRefresh = false) {
     if (forceRefresh) {
-      localStorage.removeItem('wc_fd_matches');
+      localStorage.removeItem('wc_espn_events');
       fixtureMap = null;
     }
     if (!fixtureMap) {
-      const matches = await fetchAllFixtures();
-      fixtureMap = buildFixtureMap(matches);
-      const hasLive = matches.some(m => ['IN_PLAY', 'PAUSED'].includes(m.status));
+      const events = await fetchAllFixtures();
+      fixtureMap = buildFixtureMap(events);
+      const hasLive = events.some(ev =>
+        ev.competitions?.[0]?.status?.type?.state === 'in'
+      );
       if (hasLive && !liveRefreshTimer) {
         liveRefreshTimer = setInterval(async () => {
           await loadFixtureMap(true);
@@ -560,38 +559,86 @@ document.addEventListener("DOMContentLoaded", () => {
         const mid = card.dataset.id;
         const match = [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].find(m => m.id === mid);
         if (!match) return;
-        const fix = fMap[`${match.teamA}||${match.teamB}`] || fMap[`${match.teamB}||${match.teamA}`];
-        if (!fix) return;
 
-        const status = fix.status;
-        const liveSet     = new Set(['IN_PLAY', 'PAUSED']);
-        const finishedSet = new Set(['FINISHED']);
-        if (!liveSet.has(status) && !finishedSet.has(status)) return;
+        const ev = fMap[`${match.teamA}||${match.teamB}`];
+        if (!ev) return;
 
-        const isHomeA = resolveFdName(fix.homeTeam?.name) === match.teamA;
-        const scoreH = fix.score?.fullTime?.home;
-        const scoreA = fix.score?.fullTime?.away;
-        const gA = isHomeA ? scoreH : scoreA;
-        const gB = isHomeA ? scoreA : scoreH;
+        const comp = ev.competitions?.[0];
+        const state = comp?.status?.type?.state;
+        if (state !== 'in' && state !== 'post') return;
+
+        const home = comp.competitors?.find(c => c.homeAway === 'home');
+        const away = comp.competitors?.find(c => c.homeAway === 'away');
+        const isHomeA = resolveEspnName(home?.team?.displayName) === match.teamA;
+        const gA = isHomeA ? (home?.score ?? '—') : (away?.score ?? '—');
+        const gB = isHomeA ? (away?.score ?? '—') : (home?.score ?? '—');
 
         const area = card.querySelector('.match-score-area');
         if (!area) return;
 
-        const badgeCls  = liveSet.has(status) ? 'live' : 'ft';
-        const badgeText = status === 'PAUSED'  ? 'HALF TIME'
-                        : liveSet.has(status)  ? 'LIVE' : '終了';
+        const statusName = comp?.status?.type?.name || '';
+        const isLive = state === 'in';
+        const badgeCls  = isLive ? 'live' : 'ft';
+        const badgeText = statusName === 'STATUS_HALFTIME' ? 'HALF TIME'
+                        : isLive ? 'LIVE' : '終了';
 
         area.innerHTML = `
           <div class="score-display">
             <span class="score-badge ${badgeCls}">${badgeText}</span>
             <div class="score-nums">
-              <span>${gA ?? '—'}</span>
+              <span>${gA}</span>
               <span class="score-dash-sep">-</span>
-              <span>${gB ?? '—'}</span>
+              <span>${gB}</span>
             </div>
           </div>`;
       });
     } catch (_) { /* スコア表示はオプション機能なのでエラーを無視 */ }
+  }
+
+  function computeStandings(fMap) {
+    const table = {};
+    Object.entries(TEAMS).forEach(([ja, d]) => {
+      table[ja] = { name: ja, flag: d.flag, group: d.group,
+        played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0 };
+    });
+
+    GROUP_STAGE_MATCHES.forEach(match => {
+      const ev = fMap[`${match.teamA}||${match.teamB}`];
+      if (!ev) return;
+      const comp = ev.competitions?.[0];
+      if (comp?.status?.type?.state !== 'post') return;
+
+      const home = comp.competitors?.find(c => c.homeAway === 'home');
+      const away = comp.competitors?.find(c => c.homeAway === 'away');
+      const isHomeA = resolveEspnName(home?.team?.displayName) === match.teamA;
+      const gA = parseInt(isHomeA ? home?.score : away?.score);
+      const gB = parseInt(isHomeA ? away?.score : home?.score);
+      if (isNaN(gA) || isNaN(gB)) return;
+
+      const tA = table[match.teamA];
+      const tB = table[match.teamB];
+      tA.played++; tA.gf += gA; tA.ga += gB;
+      tB.played++; tB.gf += gB; tB.ga += gA;
+
+      if (gA > gB)       { tA.won++; tA.pts += 3; tB.lost++; }
+      else if (gA === gB) { tA.drawn++; tA.pts++; tB.drawn++; tB.pts++; }
+      else               { tB.won++; tB.pts += 3; tA.lost++; }
+    });
+
+    const groups = {};
+    Object.values(table).forEach(t => {
+      t.gd = t.gf - t.ga;
+      if (!groups[t.group]) groups[t.group] = [];
+      groups[t.group].push(t);
+    });
+
+    Object.values(groups).forEach(g =>
+      g.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf)
+    );
+
+    return Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, teams]) => teams);
   }
 
   async function renderStandingsTab() {
@@ -599,22 +646,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const updatedEl = document.getElementById('standings-updated-at');
     content.innerHTML = `<div class="players-loading"><i class="fa-solid fa-circle-notch fa-spin"></i>読み込んでいます...</div>`;
 
-    if (!getFdKey()) {
-      content.innerHTML = `<div class="players-error"><i class="fa-solid fa-key"></i><br><br>順位表用APIキー(FOOTBALL_DATA_KEY)が設定されていません。</div>`;
-      return;
-    }
     try {
-      const groups = await fetchStandings();
-      if (!groups.length) {
-        content.innerHTML = `<div class="players-error">順位データがまだありません（大会開始前または試合前）。</div>`;
-        return;
-      }
+      const fMap = await loadFixtureMap();
+      const groups = computeStandings(fMap);
+
       content.innerHTML = '<div class="standings-groups-grid" id="standings-grid"></div>';
       const grid = document.getElementById('standings-grid');
-      groups.forEach(groupStandings => {
-        const groupRaw = groupStandings.group || '';
-        const letter   = groupRaw.replace('GROUP_', '');
-        const table    = groupStandings.table || [];
+
+      groups.forEach(groupTeams => {
+        const letter = groupTeams[0]?.group || '';
         const card = document.createElement('div');
         card.className = 'group-card';
         card.innerHTML = `
@@ -630,37 +670,35 @@ document.addEventListener("DOMContentLoaded", () => {
               </tr>
             </thead>
             <tbody>
-              ${table.map((s, i) => {
-                const ja   = resolveFdName(s.team.name);
-                const flag = TEAMS[ja]?.flag || '🏳️';
-                const gd   = s.goalDifference;
-                const gdStr = gd > 0 ? `+${gd}` : String(gd);
-                const gdCls = gd > 0 ? 'positive' : gd < 0 ? 'negative' : '';
+              ${groupTeams.map((s, i) => {
+                const gdStr = s.gd > 0 ? `+${s.gd}` : String(s.gd);
+                const gdCls = s.gd > 0 ? 'positive' : s.gd < 0 ? 'negative' : '';
                 const rowCls  = i < 2 ? 'st-row-qualify' : i === 2 ? 'st-row-maybe' : 'st-row-out';
                 const rankCls = i < 2 ? 'st-rank-qualify' : i === 2 ? 'st-rank-maybe' : 'st-rank-out';
                 return `
                   <tr class="${rowCls}">
-                    <td><span class="st-rank-badge ${rankCls}">${s.position}</span></td>
+                    <td><span class="st-rank-badge ${rankCls}">${i + 1}</span></td>
                     <td>
                       <div class="st-team-cell">
-                        <span class="st-flag">${flag}</span>
-                        <span class="st-name">${ja}</span>
+                        <span class="st-flag">${s.flag}</span>
+                        <span class="st-name">${s.name}</span>
                       </div>
                     </td>
-                    <td>${s.playedGames}</td>
+                    <td>${s.played}</td>
                     <td>${s.won}</td>
-                    <td>${s.draw}</td>
+                    <td>${s.drawn}</td>
                     <td>${s.lost}</td>
-                    <td>${s.goalsFor}</td>
-                    <td>${s.goalsAgainst}</td>
+                    <td>${s.gf}</td>
+                    <td>${s.ga}</td>
                     <td class="st-gd ${gdCls}">${gdStr}</td>
-                    <td class="st-pts">${s.points}</td>
+                    <td class="st-pts">${s.pts}</td>
                   </tr>`;
               }).join('')}
             </tbody>
           </table>`;
         grid.appendChild(card);
       });
+
       updatedEl.textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
       updatedEl.style.display = 'block';
     } catch (err) {
