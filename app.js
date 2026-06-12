@@ -78,6 +78,8 @@ document.addEventListener("DOMContentLoaded", () => {
         renderBracket();
       } else if (activeTab === "favorites") {
         renderFavoritesList();
+      } else if (activeTab === "standings") {
+        renderStandingsTab();
       } else if (activeTab === "players") {
         renderPlayersTab();
       }
@@ -219,6 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
         
+        <div class="match-score-area"></div>
         <div class="calendar-actions">
           <a href="${googleUrl}" target="_blank" class="cal-btn google-cal" title="Googleカレンダーに追加">
             <i class="fa-brands fa-google"></i> Google追加
@@ -314,6 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const isKo = match.id.startsWith("ko-");
       matchesList.appendChild(createMatchCard(match, isKo));
     });
+    updateMatchScores();
   }
 
   // --- RENDER FAVORITES TAB ---
@@ -453,6 +457,211 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
     rounds.finals.appendChild(championNode);
+  }
+
+  // --- STANDINGS & RESULTS ---
+  const WC_LEAGUE_ID = 1;
+  const FIXTURES_TTL  = 5  * 60 * 1000;
+  const STANDINGS_TTL = 30 * 60 * 1000;
+
+  // 英語名 → 日本語名マップ
+  const nameEnToJa = {};
+  Object.entries(TEAMS).forEach(([ja, d]) => { nameEnToJa[d.nameEn] = ja; });
+
+  async function apiGet(url, cacheKey, ttl) {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const { data, ts } = JSON.parse(raw);
+      if (Date.now() - ts < ttl) return data;
+    }
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_NOT_SET');
+    const res  = await fetch(url, { headers: { 'x-apisports-key': apiKey } });
+    const json = await res.json();
+    if (json.errors && Object.keys(json.errors).length) throw new Error(JSON.stringify(json.errors));
+    localStorage.setItem(cacheKey, JSON.stringify({ data: json, ts: Date.now() }));
+    return json;
+  }
+
+  async function fetchAllFixtures() {
+    const page1 = await apiGet(
+      `${API_BASE}/fixtures?league=${WC_LEAGUE_ID}&season=2026`,
+      'wc_fix_p1', FIXTURES_TTL
+    );
+    let all = page1.response || [];
+    const total = page1.paging?.total || 1;
+    if (total > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: total - 1 }, (_, i) =>
+          apiGet(`${API_BASE}/fixtures?league=${WC_LEAGUE_ID}&season=2026&page=${i + 2}`,
+                 `wc_fix_p${i + 2}`, FIXTURES_TTL)
+        )
+      );
+      rest.forEach(r => { all = all.concat(r.response || []); });
+    }
+    return all;
+  }
+
+  async function fetchStandings() {
+    const data = await apiGet(
+      `${API_BASE}/standings?league=${WC_LEAGUE_ID}&season=2026`,
+      'wc_standings', STANDINGS_TTL
+    );
+    return data.response?.[0]?.league?.standings || [];
+  }
+
+  function buildFixtureMap(fixtures) {
+    const map = {};
+    fixtures.forEach(f => {
+      const h = f.teams?.home?.name;
+      const a = f.teams?.away?.name;
+      if (h && a) { map[`${h}||${a}`] = f; map[`${a}||${h}`] = f; }
+    });
+    return map;
+  }
+
+  let fixtureMap = null;
+  let liveRefreshTimer = null;
+
+  async function loadFixtureMap(forceRefresh = false) {
+    if (forceRefresh) {
+      ['wc_fix_p1','wc_fix_p2','wc_fix_p3'].forEach(k => localStorage.removeItem(k));
+      fixtureMap = null;
+    }
+    if (!fixtureMap) {
+      const fixtures = await fetchAllFixtures();
+      fixtureMap = buildFixtureMap(fixtures);
+      const hasLive = fixtures.some(f =>
+        ['1H','HT','2H','ET','BT','P'].includes(f.fixture?.status?.short)
+      );
+      if (hasLive && !liveRefreshTimer) {
+        liveRefreshTimer = setInterval(async () => {
+          await loadFixtureMap(true);
+          if (activeTab === 'schedule') { renderMatchesList(); updateMatchScores(); }
+          if (activeTab === 'standings') renderStandingsTab();
+        }, 5 * 60 * 1000);
+      } else if (!hasLive && liveRefreshTimer) {
+        clearInterval(liveRefreshTimer);
+        liveRefreshTimer = null;
+      }
+    }
+    return fixtureMap;
+  }
+
+  async function updateMatchScores() {
+    try {
+      const fMap = await loadFixtureMap();
+      document.querySelectorAll('.match-card[data-id]').forEach(card => {
+        const mid = card.dataset.id;
+        const match = [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].find(m => m.id === mid);
+        if (!match) return;
+        const enA = TEAMS[match.teamA]?.nameEn;
+        const enB = TEAMS[match.teamB]?.nameEn;
+        if (!enA || !enB) return;
+        const fix = fMap[`${enA}||${enB}`] || fMap[`${enB}||${enA}`];
+        if (!fix) return;
+
+        const status = fix.fixture?.status?.short;
+        const liveSet    = new Set(['1H','HT','2H','ET','BT','P']);
+        const finishedSet = new Set(['FT','AET','PEN']);
+        if (!liveSet.has(status) && !finishedSet.has(status)) return;
+
+        const isHomeA = fix.teams?.home?.name === enA;
+        const gA = isHomeA ? fix.goals?.home : fix.goals?.away;
+        const gB = isHomeA ? fix.goals?.away : fix.goals?.home;
+
+        const area = card.querySelector('.match-score-area');
+        if (!area) return;
+
+        const badgeCls  = liveSet.has(status) ? 'live' : 'ft';
+        const badgeText = liveSet.has(status)
+          ? (status === 'HT' ? 'HALF TIME' : 'LIVE')
+          : '終了';
+
+        area.innerHTML = `
+          <div class="score-display">
+            <span class="score-badge ${badgeCls}">${badgeText}</span>
+            <div class="score-nums">
+              <span>${gA ?? '—'}</span>
+              <span class="score-dash-sep">-</span>
+              <span>${gB ?? '—'}</span>
+            </div>
+          </div>`;
+      });
+    } catch (_) { /* スコア表示はオプション機能なのでエラーを無視 */ }
+  }
+
+  async function renderStandingsTab() {
+    const content  = document.getElementById('standings-content');
+    const updatedEl = document.getElementById('standings-updated-at');
+    content.innerHTML = `<div class="players-loading"><i class="fa-solid fa-circle-notch fa-spin"></i>読み込んでいます...</div>`;
+
+    if (!getApiKey()) {
+      content.innerHTML = `<div class="players-error"><i class="fa-solid fa-key"></i><br><br>APIキーが設定されていません。</div>`;
+      return;
+    }
+    try {
+      const groups = await fetchStandings();
+      if (!groups.length) {
+        content.innerHTML = `<div class="players-error">順位データがまだありません（大会開始前または試合前）。</div>`;
+        return;
+      }
+      content.innerHTML = '<div class="standings-groups-grid" id="standings-grid"></div>';
+      const grid = document.getElementById('standings-grid');
+      groups.forEach(groupStandings => {
+        const groupRaw = groupStandings[0]?.group || '';
+        const letter   = groupRaw.replace('Group ', '');
+        const card = document.createElement('div');
+        card.className = 'group-card';
+        card.innerHTML = `
+          <div class="group-card-title">${letter}組</div>
+          <table class="standings-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th style="text-align:left">チーム</th>
+                <th>試</th><th>勝</th><th>分</th><th>負</th>
+                <th>得</th><th>失</th><th>差</th>
+                <th>Pt</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${groupStandings.map((s, i) => {
+                const ja   = nameEnToJa[s.team.name] || s.team.name;
+                const flag = TEAMS[ja]?.flag || '🏳️';
+                const gd   = s.goalsDiff;
+                const gdStr = gd > 0 ? `+${gd}` : String(gd);
+                const gdCls = gd > 0 ? 'positive' : gd < 0 ? 'negative' : '';
+                const rowCls  = i < 2 ? 'st-row-qualify' : i === 2 ? 'st-row-maybe' : 'st-row-out';
+                const rankCls = i < 2 ? 'st-rank-qualify' : i === 2 ? 'st-rank-maybe' : 'st-rank-out';
+                return `
+                  <tr class="${rowCls}">
+                    <td><span class="st-rank-badge ${rankCls}">${s.rank}</span></td>
+                    <td>
+                      <div class="st-team-cell">
+                        <span class="st-flag">${flag}</span>
+                        <span class="st-name">${ja}</span>
+                      </div>
+                    </td>
+                    <td>${s.all.played}</td>
+                    <td>${s.all.win}</td>
+                    <td>${s.all.draw}</td>
+                    <td>${s.all.lose}</td>
+                    <td>${s.all.goals.for}</td>
+                    <td>${s.all.goals.against}</td>
+                    <td class="st-gd ${gdCls}">${gdStr}</td>
+                    <td class="st-pts">${s.points}</td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+        grid.appendChild(card);
+      });
+      updatedEl.textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
+      updatedEl.style.display = 'block';
+    } catch (err) {
+      content.innerHTML = `<div class="players-error">取得エラー: ${err.message}</div>`;
+    }
   }
 
   // --- PLAYERS TAB ---

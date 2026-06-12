@@ -47,6 +47,7 @@
         <nav class="main-nav">
           <button class="nav-btn active" data-tab="schedule"><i class="fa-solid fa-calendar-days"></i> 試合日程</button>
           <button class="nav-btn" data-tab="bracket"><i class="fa-solid fa-diagram-project"></i> トーナメント表</button>
+          <button class="nav-btn" data-tab="standings"><i class="fa-solid fa-table-list"></i> 順位表</button>
           <button class="nav-btn" data-tab="favorites"><i class="fa-solid fa-star"></i> お気に入り</button>
           <button class="nav-btn" data-tab="players"><i class="fa-solid fa-users"></i> 選手情報</button>
         </nav>
@@ -172,6 +173,20 @@
       </section>
       
     </main>
+
+      <!-- TAB 3b: STANDINGS -->
+      <section class="tab-panel" id="tab-standings">
+        <div class="standings-intro glass-panel">
+          <h3><i class="fa-solid fa-table-list"></i> グループ順位表</h3>
+          <p>各グループの現在の順位。上位2チームが決勝トーナメントへ進出します。</p>
+          <div id="standings-updated-at" class="standings-updated-at" style="display:none;"></div>
+        </div>
+        <div id="standings-content">
+          <div class="players-loading">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>読み込んでいます...
+          </div>
+        </div>
+      </section>
 
       <!-- TAB 4: PLAYERS -->
       <section class="tab-panel" id="tab-players">
