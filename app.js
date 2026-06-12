@@ -499,23 +499,28 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchAllFixtures() {
-    // data.js の試合日程から全ユニーク日付を取得 (YYYYMMDD形式)
-    const allDates = [...new Set(
-      [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].map(m => {
-        const [month, day] = m.date.split('/').map(n => n.padStart(2, '0'));
-        return `2026${month}${day}`;
-      })
-    )].sort();
+    // JST日付 と UTC日付 の両方を候補にする（ESPN はどちらの日付で返すか一定でないため）
+    const allMatches = [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES];
+    const candidates = new Set();
+    allMatches.forEach(m => {
+      const [month, day] = m.date.split('/');
+      const [hour, min]  = m.time.split(':');
+      const mm = month.padStart(2,'0'), dd = day.padStart(2,'0');
+      const hh = hour.padStart(2,'0'),  mi = min.padStart(2,'0');
+      candidates.add(`2026${mm}${dd}`); // JST日付
+      candidates.add(
+        new Date(`2026-${mm}-${dd}T${hh}:${mi}:00+09:00`).toISOString().slice(0,10).replace(/-/g,'')
+      ); // UTC日付
+    });
 
-    // 今日(JST)以前の日付のみフェッチ（未来の試合にスコアはない）
-    const todayJST = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
-    const pastDates = allDates.filter(d => d <= todayJST);
+    const nowUtc = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const pastDates = [...candidates].sort().filter(d => d <= nowUtc);
     if (pastDates.length === 0) return [];
 
-    // 過去日は24h、当日は5minでキャッシュ、エラーは無視して空配列を返す
     const results = await Promise.all(pastDates.map(d => {
-      const ttl = d < todayJST ? 24 * 60 * 60 * 1000 : FIXTURES_TTL;
-      return espnGet(`/scoreboard?dates=${d}`, `wc_d_${d}`, ttl).catch(() => ({ events: [] }));
+      const diffDays = Math.floor((Date.now() - new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`).getTime()) / 86400000);
+      const ttl = diffDays >= 2 ? 60 * 60 * 1000 : diffDays === 1 ? 15 * 60 * 1000 : FIXTURES_TTL;
+      return espnGet(`/scoreboard?dates=${d}`, `wc_es_${d}`, ttl).catch(() => ({ events: [] }));
     }));
     return results.flatMap(r => r.events || []);
   }
@@ -543,7 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadFixtureMap(forceRefresh = false) {
     if (forceRefresh) {
-      Object.keys(localStorage).filter(k => k.startsWith('wc_d_')).forEach(k => localStorage.removeItem(k));
+      Object.keys(localStorage).filter(k => k.startsWith('wc_es_') || k.startsWith('wc_d_')).forEach(k => localStorage.removeItem(k));
       fixtureMap = null;
     }
     if (!fixtureMap) {
