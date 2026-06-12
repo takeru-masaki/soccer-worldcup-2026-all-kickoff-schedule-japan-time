@@ -499,11 +499,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchAllFixtures() {
-    const data = await espnGet(
-      '/scoreboard?dates=20260612-20260719&limit=200',
-      'wc_espn_events', FIXTURES_TTL
-    );
-    return data.events || [];
+    // data.js の試合日程から全ユニーク日付を取得 (YYYYMMDD形式)
+    const allDates = [...new Set(
+      [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].map(m => {
+        const [month, day] = m.date.split('/').map(n => n.padStart(2, '0'));
+        return `2026${month}${day}`;
+      })
+    )].sort();
+
+    // 今日(JST)以前の日付のみフェッチ（未来の試合にスコアはない）
+    const todayJST = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+    const pastDates = allDates.filter(d => d <= todayJST);
+    if (pastDates.length === 0) return [];
+
+    // 過去日は24h、当日は5minでキャッシュ、エラーは無視して空配列を返す
+    const results = await Promise.all(pastDates.map(d => {
+      const ttl = d < todayJST ? 24 * 60 * 60 * 1000 : FIXTURES_TTL;
+      return espnGet(`/scoreboard?dates=${d}`, `wc_d_${d}`, ttl).catch(() => ({ events: [] }));
+    }));
+    return results.flatMap(r => r.events || []);
   }
 
   function buildFixtureMap(events) {
@@ -529,7 +543,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadFixtureMap(forceRefresh = false) {
     if (forceRefresh) {
-      localStorage.removeItem('wc_espn_events');
+      Object.keys(localStorage).filter(k => k.startsWith('wc_d_')).forEach(k => localStorage.removeItem(k));
       fixtureMap = null;
     }
     if (!fixtureMap) {
