@@ -18,6 +18,8 @@ jobs:
         run: |
           printf 'window.APP_CONFIG = { PLAYERS_API_KEY: "%s", FOOTBALL_DATA_KEY: "%s" };\n' "$PLAYERS_API_KEY" "$FOOTBALL_DATA_KEY" > config.js
           sed -i '/^config\.js$/d' .gitignore
+          echo "PLAYERS_API_KEY length: ${#PLAYERS_API_KEY}"
+          echo "FOOTBALL_DATA_KEY length: ${#FOOTBALL_DATA_KEY}"
         env:
           PLAYERS_API_KEY: ${{ secrets.PLAYERS_API_KEY }}
           FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
