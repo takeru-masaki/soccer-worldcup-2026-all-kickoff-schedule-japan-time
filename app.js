@@ -459,63 +459,70 @@ document.addEventListener("DOMContentLoaded", () => {
     rounds.finals.appendChild(championNode);
   }
 
-  // --- STANDINGS & RESULTS ---
-  const WC_LEAGUE_ID = 1;
+  // --- STANDINGS & RESULTS (football-data.org) ---
+  const FD_BASE = 'https://api.football-data.org/v4';
   const FIXTURES_TTL  = 5  * 60 * 1000;
   const STANDINGS_TTL = 30 * 60 * 1000;
 
-  // 英語名 → 日本語名マップ
+  // data.js の nameEn → 日本語名マップ
   const nameEnToJa = {};
   Object.entries(TEAMS).forEach(([ja, d]) => { nameEnToJa[d.nameEn] = ja; });
 
-  async function apiGet(url, cacheKey, ttl) {
+  // football-data.org 固有の英語名差異を吸収
+  const FD_ALIASES = {
+    'Korea Republic': '韓国',
+    'Republic of Korea': '韓国',
+    'United States': 'アメリカ',
+    'Türkiye': 'トルコ',
+    'Bosnia-Herzegovina': 'ボスニア・ヘルツェゴビナ',
+    'Congo DR': 'DRコンゴ',
+    "Côte d'Ivoire": 'コートジボワール',
+    'Czechia': 'チェコ',
+    'IR Iran': 'イラン',
+  };
+
+  function resolveFdName(fdName) {
+    return FD_ALIASES[fdName] || nameEnToJa[fdName] || fdName;
+  }
+
+  function getFdKey() {
+    return window.APP_CONFIG?.FOOTBALL_DATA_KEY || '';
+  }
+
+  async function fdApiGet(path, cacheKey, ttl) {
     const raw = localStorage.getItem(cacheKey);
     if (raw) {
       const { data, ts } = JSON.parse(raw);
       if (Date.now() - ts < ttl) return data;
     }
-    const apiKey = getApiKey();
-    if (!apiKey) throw new Error('API_KEY_NOT_SET');
-    const res  = await fetch(url, { headers: { 'x-apisports-key': apiKey } });
+    const key = getFdKey();
+    if (!key) throw new Error('FD_KEY_NOT_SET');
+    const res = await fetch(`${FD_BASE}${path}`, { headers: { 'X-Auth-Token': key } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    if (json.errors && Object.keys(json.errors).length) throw new Error(JSON.stringify(json.errors));
     localStorage.setItem(cacheKey, JSON.stringify({ data: json, ts: Date.now() }));
     return json;
   }
 
   async function fetchAllFixtures() {
-    const page1 = await apiGet(
-      `${API_BASE}/fixtures?league=${WC_LEAGUE_ID}&season=2026`,
-      'wc_fix_p1', FIXTURES_TTL
-    );
-    let all = page1.response || [];
-    const total = page1.paging?.total || 1;
-    if (total > 1) {
-      const rest = await Promise.all(
-        Array.from({ length: total - 1 }, (_, i) =>
-          apiGet(`${API_BASE}/fixtures?league=${WC_LEAGUE_ID}&season=2026&page=${i + 2}`,
-                 `wc_fix_p${i + 2}`, FIXTURES_TTL)
-        )
-      );
-      rest.forEach(r => { all = all.concat(r.response || []); });
-    }
-    return all;
+    const data = await fdApiGet('/competitions/WC/matches', 'wc_fd_matches', FIXTURES_TTL);
+    return data.matches || [];
   }
 
   async function fetchStandings() {
-    const data = await apiGet(
-      `${API_BASE}/standings?league=${WC_LEAGUE_ID}&season=2026`,
-      'wc_standings', STANDINGS_TTL
-    );
-    return data.response?.[0]?.league?.standings || [];
+    const data = await fdApiGet('/competitions/WC/standings', 'wc_fd_standings', STANDINGS_TTL);
+    return (data.standings || []).filter(s => s.type === 'TOTAL');
   }
 
-  function buildFixtureMap(fixtures) {
+  function buildFixtureMap(matches) {
     const map = {};
-    fixtures.forEach(f => {
-      const h = f.teams?.home?.name;
-      const a = f.teams?.away?.name;
-      if (h && a) { map[`${h}||${a}`] = f; map[`${a}||${h}`] = f; }
+    matches.forEach(m => {
+      const jaH = resolveFdName(m.homeTeam?.name);
+      const jaA = resolveFdName(m.awayTeam?.name);
+      if (jaH && jaA) {
+        map[`${jaH}||${jaA}`] = m;
+        map[`${jaA}||${jaH}`] = m;
+      }
     });
     return map;
   }
@@ -525,15 +532,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadFixtureMap(forceRefresh = false) {
     if (forceRefresh) {
-      ['wc_fix_p1','wc_fix_p2','wc_fix_p3'].forEach(k => localStorage.removeItem(k));
+      localStorage.removeItem('wc_fd_matches');
       fixtureMap = null;
     }
     if (!fixtureMap) {
-      const fixtures = await fetchAllFixtures();
-      fixtureMap = buildFixtureMap(fixtures);
-      const hasLive = fixtures.some(f =>
-        ['1H','HT','2H','ET','BT','P'].includes(f.fixture?.status?.short)
-      );
+      const matches = await fetchAllFixtures();
+      fixtureMap = buildFixtureMap(matches);
+      const hasLive = matches.some(m => ['IN_PLAY', 'PAUSED'].includes(m.status));
       if (hasLive && !liveRefreshTimer) {
         liveRefreshTimer = setInterval(async () => {
           await loadFixtureMap(true);
@@ -555,28 +560,26 @@ document.addEventListener("DOMContentLoaded", () => {
         const mid = card.dataset.id;
         const match = [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].find(m => m.id === mid);
         if (!match) return;
-        const enA = TEAMS[match.teamA]?.nameEn;
-        const enB = TEAMS[match.teamB]?.nameEn;
-        if (!enA || !enB) return;
-        const fix = fMap[`${enA}||${enB}`] || fMap[`${enB}||${enA}`];
+        const fix = fMap[`${match.teamA}||${match.teamB}`] || fMap[`${match.teamB}||${match.teamA}`];
         if (!fix) return;
 
-        const status = fix.fixture?.status?.short;
-        const liveSet    = new Set(['1H','HT','2H','ET','BT','P']);
-        const finishedSet = new Set(['FT','AET','PEN']);
+        const status = fix.status;
+        const liveSet     = new Set(['IN_PLAY', 'PAUSED']);
+        const finishedSet = new Set(['FINISHED']);
         if (!liveSet.has(status) && !finishedSet.has(status)) return;
 
-        const isHomeA = fix.teams?.home?.name === enA;
-        const gA = isHomeA ? fix.goals?.home : fix.goals?.away;
-        const gB = isHomeA ? fix.goals?.away : fix.goals?.home;
+        const isHomeA = resolveFdName(fix.homeTeam?.name) === match.teamA;
+        const scoreH = fix.score?.fullTime?.home;
+        const scoreA = fix.score?.fullTime?.away;
+        const gA = isHomeA ? scoreH : scoreA;
+        const gB = isHomeA ? scoreA : scoreH;
 
         const area = card.querySelector('.match-score-area');
         if (!area) return;
 
         const badgeCls  = liveSet.has(status) ? 'live' : 'ft';
-        const badgeText = liveSet.has(status)
-          ? (status === 'HT' ? 'HALF TIME' : 'LIVE')
-          : '終了';
+        const badgeText = status === 'PAUSED'  ? 'HALF TIME'
+                        : liveSet.has(status)  ? 'LIVE' : '終了';
 
         area.innerHTML = `
           <div class="score-display">
@@ -592,12 +595,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function renderStandingsTab() {
-    const content  = document.getElementById('standings-content');
+    const content   = document.getElementById('standings-content');
     const updatedEl = document.getElementById('standings-updated-at');
     content.innerHTML = `<div class="players-loading"><i class="fa-solid fa-circle-notch fa-spin"></i>読み込んでいます...</div>`;
 
-    if (!getApiKey()) {
-      content.innerHTML = `<div class="players-error"><i class="fa-solid fa-key"></i><br><br>APIキーが設定されていません。</div>`;
+    if (!getFdKey()) {
+      content.innerHTML = `<div class="players-error"><i class="fa-solid fa-key"></i><br><br>順位表用APIキー(FOOTBALL_DATA_KEY)が設定されていません。</div>`;
       return;
     }
     try {
@@ -609,8 +612,9 @@ document.addEventListener("DOMContentLoaded", () => {
       content.innerHTML = '<div class="standings-groups-grid" id="standings-grid"></div>';
       const grid = document.getElementById('standings-grid');
       groups.forEach(groupStandings => {
-        const groupRaw = groupStandings[0]?.group || '';
-        const letter   = groupRaw.replace('Group ', '');
+        const groupRaw = groupStandings.group || '';
+        const letter   = groupRaw.replace('GROUP_', '');
+        const table    = groupStandings.table || [];
         const card = document.createElement('div');
         card.className = 'group-card';
         card.innerHTML = `
@@ -626,29 +630,29 @@ document.addEventListener("DOMContentLoaded", () => {
               </tr>
             </thead>
             <tbody>
-              ${groupStandings.map((s, i) => {
-                const ja   = nameEnToJa[s.team.name] || s.team.name;
+              ${table.map((s, i) => {
+                const ja   = resolveFdName(s.team.name);
                 const flag = TEAMS[ja]?.flag || '🏳️';
-                const gd   = s.goalsDiff;
+                const gd   = s.goalDifference;
                 const gdStr = gd > 0 ? `+${gd}` : String(gd);
                 const gdCls = gd > 0 ? 'positive' : gd < 0 ? 'negative' : '';
                 const rowCls  = i < 2 ? 'st-row-qualify' : i === 2 ? 'st-row-maybe' : 'st-row-out';
                 const rankCls = i < 2 ? 'st-rank-qualify' : i === 2 ? 'st-rank-maybe' : 'st-rank-out';
                 return `
                   <tr class="${rowCls}">
-                    <td><span class="st-rank-badge ${rankCls}">${s.rank}</span></td>
+                    <td><span class="st-rank-badge ${rankCls}">${s.position}</span></td>
                     <td>
                       <div class="st-team-cell">
                         <span class="st-flag">${flag}</span>
                         <span class="st-name">${ja}</span>
                       </div>
                     </td>
-                    <td>${s.all.played}</td>
-                    <td>${s.all.win}</td>
-                    <td>${s.all.draw}</td>
-                    <td>${s.all.lose}</td>
-                    <td>${s.all.goals.for}</td>
-                    <td>${s.all.goals.against}</td>
+                    <td>${s.playedGames}</td>
+                    <td>${s.won}</td>
+                    <td>${s.draw}</td>
+                    <td>${s.lost}</td>
+                    <td>${s.goalsFor}</td>
+                    <td>${s.goalsAgainst}</td>
                     <td class="st-gd ${gdCls}">${gdStr}</td>
                     <td class="st-pts">${s.points}</td>
                   </tr>`;

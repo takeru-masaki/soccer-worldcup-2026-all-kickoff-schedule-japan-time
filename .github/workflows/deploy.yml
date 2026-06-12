@@ -16,10 +16,11 @@ jobs:
 
       - name: Generate config.js from secret
         run: |
-          printf 'window.APP_CONFIG = { PLAYERS_API_KEY: "%s" };\n' "$PLAYERS_API_KEY" > config.js
+          printf 'window.APP_CONFIG = { PLAYERS_API_KEY: "%s", FOOTBALL_DATA_KEY: "%s" };\n' "$PLAYERS_API_KEY" "$FOOTBALL_DATA_KEY" > config.js
           sed -i '/^config\.js$/d' .gitignore
         env:
           PLAYERS_API_KEY: ${{ secrets.PLAYERS_API_KEY }}
+          FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
