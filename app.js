@@ -40,8 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (diff <= 0) {
       document.getElementById("countdown-card").innerHTML = `
-        <div class="countdown-label" style="color: #00ff87"><i class="fa-solid fa-circle-play"></i> 大会進行中</div>
-        <div class="countdown-timer" style="font-size: 20px; font-weight: 800; color: #fff; padding: 4px 0;">
+        <div class="countdown-label" style="color: #00cc70"><i class="fa-solid fa-circle-play"></i> 大会進行中</div>
+        <div class="countdown-timer" style="font-size: 20px; font-weight: 800; color: var(--color-text-main); padding: 4px 0;">
           FIFA ワールドカップ 2026 開幕！
         </div>
       `;
@@ -212,16 +212,16 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="team-flag">${flagA}</span>
             <span class="team-name">${teamA}</span>
           </div>
+          <span class="team-score" data-score-slot="teamA"></span>
         </div>
-        <div class="vs-divider">VS</div>
+        <div class="vs-divider"><span class="vs-label">VS</span></div>
         <div class="team-row" data-team-slot="teamB">
           <div class="team-info">
             <span class="team-flag">${flagB}</span>
             <span class="team-name">${teamB}</span>
           </div>
+          <span class="team-score" data-score-slot="teamB"></span>
         </div>
-        
-        <div class="match-score-area"></div>
         <div class="calendar-actions">
           <a href="${googleUrl}" target="_blank" class="cal-btn google-cal" title="Googleカレンダーに追加">
             <i class="fa-brands fa-google"></i> Google追加
@@ -457,6 +457,47 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
     rounds.finals.appendChild(championNode);
+
+    // --- モバイル用ラウンドタブ（初回のみ初期化）---
+    const roundTabs = document.querySelectorAll(".bracket-round-tab");
+    const columns = document.querySelectorAll(".bracket-column");
+
+    function setMobileActiveRound(round) {
+      roundTabs.forEach(t => t.classList.toggle("active", t.dataset.round === round));
+      const isMobile = window.innerWidth <= 768;
+      columns.forEach(col => {
+        const isActive = col.dataset.round === round;
+        col.classList.toggle("mobile-active", isActive);
+        // CSSメディアクエリに依存せずJSで直接制御（Safari/iOS対応）
+        if (isMobile) {
+          col.style.display = isActive ? "flex" : "none";
+        } else {
+          col.style.display = "";
+        }
+      });
+    }
+
+    setMobileActiveRound("r32");
+
+    if (!document.getElementById("bracket-round-tabs").dataset.initialized) {
+      document.getElementById("bracket-round-tabs").dataset.initialized = "1";
+      roundTabs.forEach(tab => {
+        tab.addEventListener("click", () => setMobileActiveRound(tab.dataset.round));
+      });
+      // デスクトップ↔モバイル切り替え時にインラインスタイルをリセット
+      window.addEventListener("resize", () => {
+        if (window.innerWidth > 768) {
+          document.querySelectorAll(".bracket-column").forEach(col => { col.style.display = ""; });
+        } else {
+          const activeRound = document.querySelector(".bracket-round-tab.active")?.dataset.round;
+          if (activeRound) {
+            document.querySelectorAll(".bracket-column").forEach(col => {
+              col.style.display = col.dataset.round === activeRound ? "flex" : "none";
+            });
+          }
+        }
+      });
+    }
   }
 
   // --- STANDINGS & RESULTS (ESPN unofficial API — no key, CORS-safe) ---
@@ -592,24 +633,44 @@ document.addEventListener("DOMContentLoaded", () => {
         const gA = isHomeA ? (home?.score ?? '—') : (away?.score ?? '—');
         const gB = isHomeA ? (away?.score ?? '—') : (home?.score ?? '—');
 
-        const area = card.querySelector('.match-score-area');
-        if (!area) return;
-
         const statusName = comp?.status?.type?.name || '';
         const isLive = state === 'in';
         const badgeCls  = isLive ? 'live' : 'ft';
-        const badgeText = statusName === 'STATUS_HALFTIME' ? 'HALF TIME'
+        const badgeText = statusName === 'STATUS_HALFTIME' ? 'HT'
                         : isLive ? 'LIVE' : '終了';
 
-        area.innerHTML = `
-          <div class="score-display">
-            <span class="score-badge ${badgeCls}">${badgeText}</span>
-            <div class="score-nums">
-              <span>${gA}</span>
-              <span class="score-dash-sep">-</span>
-              <span>${gB}</span>
-            </div>
-          </div>`;
+        // スコアを各チーム行の右端に直接表示
+        const slotA = card.querySelector('[data-score-slot="teamA"]');
+        const slotB = card.querySelector('[data-score-slot="teamB"]');
+        const vsLabel = card.querySelector('.vs-label');
+        const rowA = card.querySelector('[data-team-slot="teamA"]');
+        const rowB = card.querySelector('[data-team-slot="teamB"]');
+
+        if (slotA) slotA.textContent = gA;
+        if (slotB) slotB.textContent = gB;
+
+        // VS → ステータスバッジに切り替え
+        if (vsLabel) {
+          vsLabel.textContent = badgeText;
+          vsLabel.className = `vs-label score-badge ${badgeCls}`;
+        }
+
+        // 勝者ハイライト（試合終了時のみ）
+        if (state === 'post') {
+          const nA = parseInt(gA), nB = parseInt(gB);
+          if (!isNaN(nA) && !isNaN(nB)) {
+            if (nA > nB) {
+              rowA?.classList.add('team-winner');
+              rowB?.classList.add('team-loser');
+            } else if (nB > nA) {
+              rowB?.classList.add('team-winner');
+              rowA?.classList.add('team-loser');
+            } else {
+              rowA?.classList.add('team-draw');
+              rowB?.classList.add('team-draw');
+            }
+          }
+        }
       });
     } catch (_) { /* スコア表示はオプション機能なのでエラーを無視 */ }
   }
@@ -891,6 +952,31 @@ document.addEventListener("DOMContentLoaded", () => {
       content.innerHTML = `<div class="players-error"><i class="fa-solid fa-triangle-exclamation"></i><br><br>${msg}</div>`;
     }
   }
+
+  // --- THEME TOGGLE ---
+  const themeToggleBtn = document.getElementById('theme-toggle');
+  const themeIcon = document.getElementById('theme-icon');
+  const themeLabel = document.getElementById('theme-label');
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('wc_theme', theme);
+    if (theme === 'light') {
+      themeIcon.className = 'fa-solid fa-moon';
+      if (themeLabel) themeLabel.textContent = 'ダーク';
+    } else {
+      themeIcon.className = 'fa-solid fa-sun';
+      if (themeLabel) themeLabel.textContent = 'ライト';
+    }
+  }
+
+  // 初期アイコン同期
+  applyTheme(localStorage.getItem('wc_theme') || 'dark');
+
+  themeToggleBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    applyTheme(current === 'light' ? 'dark' : 'light');
+  });
 
   // Initial Load
   updateFavoritesStats();

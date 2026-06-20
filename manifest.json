@@ -1,0 +1,32 @@
+{
+  "name": "FIFA World Cup 2026 スケジュール",
+  "short_name": "W杯2026",
+  "description": "FIFA World Cup 2026 試合日程・スコア・トーナメント表・順位表",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#060913",
+  "theme_color": "#00f2fe",
+  "lang": "ja",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "試合日程",
+      "url": "./index.html#schedule",
+      "description": "試合日程を見る"
+    },
+    {
+      "name": "日本代表戦",
+      "url": "./index.html#japan",
+      "description": "日本代表の試合だけ表示"
+    }
+  ]
+}

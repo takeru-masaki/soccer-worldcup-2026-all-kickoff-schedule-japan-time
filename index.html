@@ -4,7 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FIFA World Cup 2026 Match Schedule</title>
+  <!-- テーマフラッシュ防止: CSS読み込み前に class を設定 -->
+  <script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('wc_theme') || 'dark'); })()</script>
   
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00f2fe">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="W杯2026">
+  <link rel="apple-touch-icon" href="icon.svg">
+
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,14 +33,20 @@
     <!-- Header Section -->
     <header class="app-header">
       <div class="header-main">
-        <div class="logo-area">
-          <div class="logo-icon"><i class="fa-solid fa-trophy"></i></div>
-          <div class="logo-text">
-            <span class="sub">FIFA WORLD CUP</span>
-            <span class="main">2026 SCHEDULE</span>
+        <div class="logo-row">
+          <div class="logo-area">
+            <div class="logo-icon"><i class="fa-solid fa-trophy"></i></div>
+            <div class="logo-text">
+              <span class="sub">FIFA WORLD CUP</span>
+              <span class="main">2026 SCHEDULE</span>
+            </div>
           </div>
+          <button class="theme-toggle-btn" id="theme-toggle" title="ライト/ダーク切り替え">
+            <i class="fa-solid fa-sun" id="theme-icon"></i>
+            <span class="theme-toggle-label" id="theme-label">ライト</span>
+          </button>
         </div>
-        
+
         <!-- Live Countdown Header -->
         <div class="countdown-card" id="countdown-card">
           <div class="countdown-label"><i class="fa-solid fa-hourglass-start animate-spin"></i> 開幕戦まで</div>
@@ -119,9 +136,18 @@
       <section class="tab-panel" id="tab-bracket">
         <div class="bracket-intro glass-panel">
           <h3>🏆 決勝トーナメント対戦表</h3>
-          <p>ラウンド32から決勝までの組み合わせツリーです。スライドして全対戦日程を確認できます。</p>
+          <p>ラウンド32から決勝までの組み合わせです。PC: 横スクロールで全体を確認 / スマホ: 上のタブでラウンドを切り替え。</p>
         </div>
-        
+
+        <!-- スマホ用ラウンド切り替えタブ -->
+        <div class="bracket-round-tabs" id="bracket-round-tabs">
+          <button class="bracket-round-tab active" data-round="r32">ラウンド32</button>
+          <button class="bracket-round-tab" data-round="r16">ラウンド16</button>
+          <button class="bracket-round-tab" data-round="qf">準々決勝</button>
+          <button class="bracket-round-tab" data-round="sf">準決勝</button>
+          <button class="bracket-round-tab" data-round="finals">決勝</button>
+        </div>
+
         <div class="bracket-outer-scroll">
           <div class="bracket-wrapper" id="bracket-view">
             <!-- Bracket Columns will be generated here -->
@@ -219,5 +245,16 @@
   <script src="data.js?v=6"></script>
   <script src="config.js?v=2"></script>
   <script src="app.js?v=9"></script>
+
+  <!-- Service Worker 登録 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('[SW] 登録完了:', reg.scope))
+          .catch(err => console.warn('[SW] 登録失敗:', err));
+      });
+    }
+  </script>
 </body>
 </html>

@@ -26,6 +26,155 @@
   --transition-smooth: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
+/* ===== LIGHT MODE ===== */
+[data-theme="light"] {
+  --bg-main: #eef2f7;
+  --bg-card: rgba(255, 255, 255, 0.82);
+  --bg-card-hover: rgba(255, 255, 255, 0.97);
+  --border-color: rgba(0, 0, 0, 0.09);
+  --border-hover: rgba(0, 150, 200, 0.5);
+  --color-primary: #0088bb;
+  --color-secondary: #7c3aed;
+  --color-text-main: #111827;
+  --color-text-muted: #6b7280;
+  --shadow-main: 0 4px 24px rgba(0, 0, 0, 0.09);
+  --shadow-glow: 0 0 15px rgba(0, 136, 187, 0.2);
+}
+
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(0, 180, 240, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(124, 58, 237, 0.05) 0%, transparent 40%);
+}
+
+[data-theme="light"] .logo-text .main {
+  background: linear-gradient(to right, #0088bb, #1a1a2e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme="light"] .logo-icon {
+  box-shadow: 0 0 15px rgba(0, 136, 187, 0.4);
+}
+
+[data-theme="light"] .countdown-card,
+[data-theme="light"] .control-bar {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme="light"] .nav-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, #0088bb, #0066aa);
+  box-shadow: 0 4px 15px rgba(0, 136, 187, 0.3);
+}
+
+[data-theme="light"] #team-search,
+[data-theme="light"] .filter-group select {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--color-text-main);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .filter-group select option {
+  background: #fff;
+  color: #111;
+}
+
+[data-theme="light"] .filter-toggle-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .team-row {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+[data-theme="light"] .team-row.team-winner {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="light"] .team-row.team-winner .team-name {
+  color: #065f46;
+}
+
+[data-theme="light"] .team-row.team-draw .team-score {
+  color: #b45309;
+}
+
+[data-theme="light"] .bracket-card {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="light"] .bracket-team-slot {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .group-card {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="light"] .group-card-title {
+  background: rgba(0, 136, 187, 0.07);
+}
+
+[data-theme="light"] .standings-table th {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .stats-mini {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="light"] .cal-btn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-muted);
+}
+
+[data-theme="light"] .champion-card-node {
+  background: radial-gradient(circle at center, rgba(0, 136, 187, 0.08) 0%, transparent 70%);
+}
+
+/* ===== THEME TOGGLE BUTTON ===== */
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: var(--font-main);
+  font-weight: 600;
+  transition: var(--transition-smooth);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: rgba(255, 229, 59, 0.08);
+}
+
+[data-theme="light"] .theme-toggle-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .theme-toggle-btn:hover {
+  color: #f59e0b;
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+@media (max-width: 480px) {
+  .theme-toggle-label { display: none; }
+  .theme-toggle-btn { padding: 8px 10px; }
+}
+
 /* Reset & Base Styles */
 * {
   box-sizing: border-box;
@@ -39,10 +188,11 @@ body {
   color: var(--color-text-main);
   min-height: 100vh;
   overflow-x: hidden;
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 242, 254, 0.04) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(157, 78, 221, 0.04) 0%, transparent 40%);
   background-attachment: fixed;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Custom Scrollbar */
@@ -98,11 +248,22 @@ body {
   gap: 16px;
 }
 
+/* Logo row: ロゴ + テーマトグルを同じ行に */
+.logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
 /* Logo */
 .logo-area {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .logo-icon {
@@ -731,67 +892,103 @@ body {
 
 /* RESPONSIVE DESIGN */
 @media (max-width: 768px) {
-  .app-header {
-    gap: 12px;
+  .app-wrapper {
+    padding: 12px;
   }
-  
+
+  .app-header {
+    gap: 10px;
+  }
+
   .header-main {
     flex-direction: column;
     align-items: flex-start;
+    gap: 10px;
   }
-  
+
+  .logo-text .main {
+    font-size: 22px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
   .countdown-card {
     width: 100%;
     align-items: center;
+    padding: 8px 14px;
   }
-  
+
+  .time-block .num {
+    font-size: 20px;
+  }
+
   .control-bar {
     flex-direction: column;
     align-items: stretch;
-    padding: 10px;
+    padding: 8px 10px;
+    gap: 10px;
   }
-  
+
+  /* ナビを横スクロールに変更（5ボタンが崩れないように） */
   .main-nav {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     width: 100%;
+    gap: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
   }
-  
+  .main-nav::-webkit-scrollbar { display: none; }
+
   .nav-btn {
-    justify-content: center;
+    flex-shrink: 0;
+    padding: 9px 12px;
+    font-size: 13px;
+    gap: 6px;
   }
-  
+
   .utility-controls {
     justify-content: center;
     width: 100%;
-    margin-top: 8px;
   }
-  
+
   .filter-wrapper {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .filter-options {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .filter-group {
     justify-content: space-between;
   }
-  
+
   .filter-group select {
     width: 70%;
   }
-  
+
   .filter-toggle-btn {
     text-align: center;
     width: 100%;
   }
-  
+
   .matches-container {
     grid-template-columns: 1fr;
+  }
+
+  /* マッチカード内のカレンダーボタンをコンパクトに */
+  .cal-btn {
+    font-size: 10px;
+    padding: 7px 8px;
   }
 }
 
@@ -1189,23 +1386,41 @@ body {
 .st-rank-out     { color: var(--color-text-muted); }
 
 /* ===== MATCH SCORE DISPLAY ===== */
-.match-score-area { margin: 8px 0 4px; }
 
-.score-display {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-.score-nums {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* 各チーム行の右端スコア */
+.team-score {
   font-family: var(--font-display);
   font-size: 26px;
   font-weight: 800;
+  color: var(--color-text-muted);
+  min-width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+  line-height: 1;
 }
-.score-dash-sep { color: var(--color-text-muted); font-size: 20px; }
+
+/* 勝者行: 緑のグロー */
+.team-row.team-winner {
+  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.25);
+}
+.team-row.team-winner .team-name {
+  color: #fff;
+  font-weight: 700;
+}
+.team-row.team-winner .team-score {
+  color: #34d399;
+}
+
+/* 敗者行: やや暗く */
+.team-row.team-loser {
+  opacity: 0.55;
+}
+
+/* 引き分け: ゴールド */
+.team-row.team-draw .team-score {
+  color: var(--color-accent);
+}
 
 .score-badge {
   font-size: 10px;
@@ -1234,4 +1449,138 @@ body {
 @media (max-width: 600px) {
   .team-selector-grid  { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
   .players-grid        { grid-template-columns: 1fr; }
+
+  /* 順位表: スマホでは横スクロール可能に */
+  .standings-groups-grid {
+    grid-template-columns: 1fr;
+  }
+  .group-card {
+    overflow-x: auto;
+  }
+  .standings-table {
+    min-width: 340px;
+  }
+
+  /* bracket-intro を compact に */
+  .bracket-intro {
+    padding: 12px 16px;
+    margin-bottom: 12px;
+  }
+  .bracket-intro p {
+    display: none; /* タブが説明代わりになるので非表示 */
+  }
+}
+
+/* ===== スマホ用ブラケット ラウンドタブ ===== */
+.bracket-round-tabs {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* ラウンド切り替えタブを表示 */
+  .bracket-round-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 4px 12px;
+    margin-bottom: 12px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bracket-round-tabs::-webkit-scrollbar { display: none; }
+
+  .bracket-round-tab {
+    flex-shrink: 0;
+    padding: 9px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .bracket-round-tab.active {
+    background: var(--color-primary);
+    color: #000;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
+  }
+
+  /* 横スクロールをやめてページ縦スクロールに委ねる */
+  .bracket-outer-scroll {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+  .bracket-wrapper {
+    flex-direction: column;
+    min-width: unset;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* 全ラウンドを非表示、active のみ表示 */
+  .bracket-column {
+    display: none;
+  }
+  .bracket-column.mobile-active {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ラウンドヘッダーは非表示（タブで代替） */
+  .bracket-column .round-header {
+    display: none;
+  }
+
+  /* matches を縦積みに修正（space-around をやめる） */
+  .bracket-column.mobile-active .bracket-matches {
+    justify-content: flex-start;
+    flex: none;
+    gap: 10px;
+  }
+
+  /* match-node のマージンをリセット（gap で制御） */
+  .bracket-column.mobile-active .bracket-match-node {
+    margin: 0;
+    width: 100%;
+  }
+
+  /* カード自体を大きく・読みやすく */
+  .bracket-card {
+    padding: 10px 12px;
+  }
+  .bracket-team-slot {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 12px;
+    min-height: 42px;
+    gap: 8px;
+  }
+  .bracket-match-info {
+    font-size: 11px;
+    padding: 0 2px;
+    margin-bottom: 6px;
+  }
+
+  /* カレンダーアイコンを少し大きく */
+  .bracket-card-cal-actions a,
+  .ical-mini-btn {
+    font-size: 14px;
+    padding: 2px;
+  }
+
+  /* チャンピオンカードのサイズ調整 */
+  .champion-card-node {
+    padding: 16px;
+    margin-top: 8px;
+  }
+  .champion-card-node .champion-flag {
+    font-size: 38px;
+  }
 }
