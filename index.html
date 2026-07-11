@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIFA World Cup 2026 Match Schedule</title>
+  <!-- テーマフラッシュ防止: CSS読み込み前に class を設定 -->
+  <script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('wc_theme') || 'dark'); })()</script>
+  
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00f2fe">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="W杯2026">
+  <link rel="apple-touch-icon" href="icon.svg">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css?v=4">
+</head>
+<body class="dark-mode">
+  
+  <div class="app-wrapper">
+    <!-- Header Section -->
+    <header class="app-header">
+      <div class="header-main">
+        <div class="logo-row">
+          <div class="logo-area">
+            <div class="logo-icon"><i class="fa-solid fa-trophy"></i></div>
+            <div class="logo-text">
+              <span class="sub">FIFA WORLD CUP</span>
+              <span class="main">2026 SCHEDULE</span>
+            </div>
+          </div>
+          <button class="theme-toggle-btn" id="theme-toggle" title="ライト/ダーク切り替え">
+            <i class="fa-solid fa-sun" id="theme-icon"></i>
+            <span class="theme-toggle-label" id="theme-label">ライト</span>
+          </button>
+        </div>
+
+        <!-- Live Countdown Header -->
+        <div class="countdown-card" id="countdown-card">
+          <div class="countdown-label"><i class="fa-solid fa-hourglass-start animate-spin"></i> 開幕戦まで</div>
+          <div class="countdown-timer" id="countdown-timer">
+            <span class="time-block"><span class="num" id="cd-days">--</span><span class="unit">日</span></span>
+            <span class="time-block"><span class="num" id="cd-hours">--</span><span class="unit">時間</span></span>
+            <span class="time-block"><span class="num" id="cd-mins">--</span><span class="unit">分</span></span>
+            <span class="time-block"><span class="num" id="cd-secs">--</span><span class="unit">秒</span></span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Top Control Bar -->
+      <div class="control-bar">
+        <nav class="main-nav">
+          <button class="nav-btn active" data-tab="schedule"><i class="fa-solid fa-calendar-days"></i> 試合日程</button>
+          <button class="nav-btn" data-tab="bracket"><i class="fa-solid fa-diagram-project"></i> トーナメント表</button>
+          <button class="nav-btn" data-tab="standings"><i class="fa-solid fa-table-list"></i> 順位表</button>
+          <button class="nav-btn" data-tab="favorites"><i class="fa-solid fa-star"></i> お気に入り</button>
+          <button class="nav-btn" data-tab="players"><i class="fa-solid fa-users"></i> 選手情報</button>
+        </nav>
+        
+        <div class="utility-controls">
+          <div class="stats-mini glass-panel">
+            <i class="fa-solid fa-star star-count-icon"></i> お気に入り: <span id="stats-fav-count" class="fav-highlight">0</span> 試合
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-main">
+      
+      <!-- TAB 1: SCHEDULE -->
+      <section class="tab-panel active" id="tab-schedule">
+        <!-- Search & Filter Area -->
+        <div class="filter-wrapper glass-panel">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="team-search" placeholder="チーム名で検索...">
+          </div>
+          
+          <div class="filter-options">
+            <div class="filter-group">
+              <label>ステージ</label>
+              <select id="stage-filter">
+                <option value="all">すべて表示</option>
+                <option value="グループ第1節">グループ第1節</option>
+                <option value="グループ第2節">グループ第2節</option>
+                <option value="グループ第3節">グループ第3節</option>
+                <option value="knockout">決勝トーナメント</option>
+              </select>
+            </div>
+            
+            <div class="filter-group" id="group-filter-container">
+              <label>グループ</label>
+              <select id="group-filter">
+                <option value="all">すべて</option>
+                <option value="A">A組</option>
+                <option value="B">B組</option>
+                <option value="C">C組</option>
+                <option value="D">D組</option>
+                <option value="E">E組</option>
+                <option value="F">F組</option>
+                <option value="G">G組</option>
+                <option value="H">H組</option>
+                <option value="I">I組</option>
+                <option value="J">J組</option>
+                <option value="K">K組</option>
+                <option value="L">L組</option>
+              </select>
+            </div>
+            
+            <button class="filter-toggle-btn" id="japan-filter-btn">
+              🇯🇵 日本代表戦のみ
+            </button>
+          </div>
+        </div>
+
+        <!-- Matches Cards List -->
+        <div class="matches-container" id="matches-list">
+          <!-- Dynamically generated match cards will go here -->
+        </div>
+      </section>
+
+      <!-- TAB 2: BRACKET -->
+      <section class="tab-panel" id="tab-bracket">
+        <div class="bracket-intro glass-panel">
+          <h3>🏆 決勝トーナメント対戦表</h3>
+          <p>ラウンド32から決勝までの組み合わせです。PC: 横スクロールで全体を確認 / スマホ: 上のタブでラウンドを切り替え。</p>
+        </div>
+
+        <!-- スマホ用ラウンド切り替えタブ -->
+        <div class="bracket-round-tabs" id="bracket-round-tabs">
+          <button class="bracket-round-tab active" data-round="r32">ラウンド32</button>
+          <button class="bracket-round-tab" data-round="r16">ラウンド16</button>
+          <button class="bracket-round-tab" data-round="qf">準々決勝</button>
+          <button class="bracket-round-tab" data-round="sf">準決勝</button>
+          <button class="bracket-round-tab" data-round="finals">決勝</button>
+        </div>
+
+        <div class="bracket-outer-scroll">
+          <div class="bracket-wrapper" id="bracket-view">
+            <!-- Bracket Columns will be generated here -->
+            <div class="bracket-column" data-round="r32">
+              <div class="round-header">ラウンド32 (6/29〜7/4)</div>
+              <div class="bracket-matches" id="bracket-r32"></div>
+            </div>
+            
+            <div class="bracket-column" data-round="r16">
+              <div class="round-header">ラウンド16 (7/5〜7/8)</div>
+              <div class="bracket-matches" id="bracket-r16"></div>
+            </div>
+            
+            <div class="bracket-column" data-round="qf">
+              <div class="round-header">準々決勝 (7/10〜7/12)</div>
+              <div class="bracket-matches" id="bracket-qf"></div>
+            </div>
+            
+            <div class="bracket-column" data-round="sf">
+              <div class="round-header">準決勝 (7/15〜7/16)</div>
+              <div class="bracket-matches" id="bracket-sf"></div>
+            </div>
+            
+            <div class="bracket-column finals-column" data-round="finals">
+              <div class="round-header">決勝 & 3位決定戦 (7/19〜7/20)</div>
+              <div class="bracket-matches" id="bracket-finals"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: FAVORITES -->
+      <section class="tab-panel" id="tab-favorites">
+        <div class="favorites-header glass-panel">
+          <h3>⭐ お気に入りに入れた試合</h3>
+          <p>星マークを付けた注目の試合日程が一覧表示されます。キックオフ時間を忘れないようチェックしましょう！</p>
+          <button class="util-btn text-btn success-btn" id="download-all-ics" style="margin-top: 12px; display: none;">
+            <i class="fa-solid fa-file-circle-plus"></i> お気に入りをまとめてカレンダー登録 (.ics)
+          </button>
+        </div>
+        
+        <div class="matches-container" id="favorites-list">
+          <!-- Starred matches will go here -->
+          <div class="empty-state">
+            <i class="fa-regular fa-star"></i>
+            <p>お気に入り登録された試合はありません。試合日程カードの星アイコンをクリックして追加してください。</p>
+          </div>
+        </div>
+      </section>
+      
+    </main>
+
+      <!-- TAB 3b: STANDINGS -->
+      <section class="tab-panel" id="tab-standings">
+        <div class="standings-intro glass-panel">
+          <h3><i class="fa-solid fa-table-list"></i> グループ順位表</h3>
+          <p>各グループの現在の順位。上位2チームが決勝トーナメントへ進出します。</p>
+          <div id="standings-updated-at" class="standings-updated-at" style="display:none;"></div>
+        </div>
+        <div id="standings-content">
+          <div class="players-loading">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>読み込んでいます...
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: PLAYERS -->
+      <section class="tab-panel" id="tab-players">
+        <div class="players-intro glass-panel">
+          <h3><i class="fa-solid fa-users"></i> W杯2026 登録選手情報</h3>
+          <p>主要国のW杯2026登録スカッドです。チームを選択して選手一覧を確認できます。</p>
+          <div id="api-key-notice" class="api-key-notice" style="display:none;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            APIキーが未設定です。<code>app.js</code> 内の <code>PLAYERS_API_KEY</code> に取得したAPIキーを入力してください。
+            (<a href="https://dashboard.api-football.com/register" target="_blank" style="color:#fbbf24">無料登録はこちら</a>)
+          </div>
+        </div>
+
+        <div class="team-selector-grid" id="team-selector-grid">
+          <!-- JS が生成 -->
+        </div>
+
+        <div id="players-content">
+          <!-- 選手カード表示エリア -->
+        </div>
+      </section>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2026 FIFA World Cup Match Schedule. Created for Soccer Fans.</p>
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data.js?v=6"></script>
+  <script src="config.js?v=2"></script>
+  <script src="app.js?v=10"></script>
+
+  <!-- Service Worker 登録 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=3')
+          .then(reg => console.log('[SW] 登録完了:', reg.scope))
+          .catch(err => console.warn('[SW] 登録失敗:', err));
+      });
+    }
+  </script>
+</body>
+</html>
