@@ -766,6 +766,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function updateBracketViewWithFixtures() {
     try {
       const fMap = await loadFixtureMap();
+      const winnersByMatchNum = {};
       document.querySelectorAll('.bracket-match-node[data-id]').forEach(node => {
         const mid = node.dataset.id;
         const match = KNOCKOUT_MATCHES.find(m => m.id === mid);
@@ -813,16 +814,44 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state === 'post') {
           const nA = parseInt(gA);
           const nB = parseInt(gB);
+          const winnerByApi = teams.isHomeA
+            ? (home?.winner ? teams.teamA : (away?.winner ? teams.teamB : null))
+            : (away?.winner ? teams.teamA : (home?.winner ? teams.teamB : null));
+          let winnerTeam = winnerByApi;
           if (!isNaN(nA) && !isNaN(nB)) {
             if (nA > nB) {
               slotA?.classList.add('team-winner');
               slotB?.classList.add('team-loser');
+              winnerTeam = winnerTeam || teams.teamA;
             } else if (nB > nA) {
               slotB?.classList.add('team-winner');
               slotA?.classList.add('team-loser');
+              winnerTeam = winnerTeam || teams.teamB;
             }
           }
+          if (winnerTeam) {
+            winnersByMatchNum[match.matchNum] = {
+              team: winnerTeam,
+              flag: TEAMS[winnerTeam]?.flag || '🏳️'
+            };
+          }
         }
+      });
+
+      // 試合終了済みの勝者を次ラウンドのスロットに反映する
+      KNOCKOUT_MATCHES.forEach(match => {
+        const winner = winnersByMatchNum[match.matchNum];
+        if (!winner || !match.nextMatchNum || !match.nextSlot) return;
+
+        const nextNode = document.querySelector(`.bracket-match-node[data-id="ko-${match.nextMatchNum}"]`);
+        if (!nextNode) return;
+
+        const slot = nextNode.querySelector(`[data-team-slot="${match.nextSlot}"]`);
+        const name = nextNode.querySelector(`[data-team-slot="${match.nextSlot}"] .bracket-team-text`);
+        const flag = nextNode.querySelector(`[data-team-slot="${match.nextSlot}"] .bracket-team-flag`);
+        if (name) name.textContent = winner.team;
+        if (flag) flag.textContent = winner.flag;
+        slot?.classList.remove('placeholder');
       });
     } catch (_) { /* トーナメント表示は補助機能のため失敗時は無視 */ }
   }
