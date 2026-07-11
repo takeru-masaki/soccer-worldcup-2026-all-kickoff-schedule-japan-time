@@ -1,5 +1,5 @@
 // Service Worker for W杯2026 Schedule App
-const CACHE_NAME = 'wc2026-v2';
+const CACHE_NAME = 'wc2026-v3';
 
 // キャッシュするアセット（アプリのコア）
 const STATIC_ASSETS = [
@@ -68,6 +68,24 @@ self.addEventListener('fetch', event => {
         .then(res => {
           const clone = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          return res;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 同一オリジンのJS/CSSはネットワーク優先（最新コードを反映しやすくする）
+  const isSameOrigin = url.origin === self.location.origin;
+  const isCodeAsset = event.request.destination === 'script' || event.request.destination === 'style';
+  if (isSameOrigin && isCodeAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          }
           return res;
         })
         .catch(() => caches.match(event.request))
