@@ -340,6 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const isKo = match.id.startsWith("ko-");
       favoritesList.appendChild(createMatchCard(match, isKo));
     });
+    updateMatchScores();
   }
 
   // --- FILTER CHANGE EVENTS ---
@@ -397,6 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderBracketNode(match) {
       const node = document.createElement("div");
       node.className = "bracket-match-node";
+      node.dataset.id = match.id;
       
       const flagA = TEAMS[match.teamA]?.flag || "🏳️";
       const flagB = TEAMS[match.teamB]?.flag || "🏳️";
@@ -406,17 +408,20 @@ document.addEventListener("DOMContentLoaded", () => {
       node.innerHTML = `
         <div class="bracket-match-info">
           <span>No.${match.matchNum} | ${match.date} ${match.time}</span>
+          <span class="bracket-status" data-status-slot>VS</span>
           <div class="bracket-card-cal-actions">
             <a href="${googleUrl}" target="_blank" title="Googleカレンダーに追加"><i class="fa-brands fa-google"></i></a>
             <span class="ical-mini-btn" data-action="ical-mini" title="カレンダー登録 (.ics)"><i class="fa-regular fa-calendar-plus"></i></span>
           </div>
         </div>
         <div class="bracket-card">
-          <div class="bracket-team-slot placeholder">
-            <span>${flagA} ${match.teamA}</span>
+          <div class="bracket-team-slot placeholder" data-team-slot="teamA">
+            <span class="bracket-team-name"><span class="bracket-team-flag">${flagA}</span><span class="bracket-team-text">${match.teamA}</span></span>
+            <span class="bracket-team-score" data-score-slot="teamA"></span>
           </div>
-          <div class="bracket-team-slot placeholder">
-            <span>${flagB} ${match.teamB}</span>
+          <div class="bracket-team-slot placeholder" data-team-slot="teamB">
+            <span class="bracket-team-name"><span class="bracket-team-flag">${flagB}</span><span class="bracket-team-text">${match.teamB}</span></span>
+            <span class="bracket-team-score" data-score-slot="teamB"></span>
           </div>
         </div>
       `;
@@ -457,6 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
     rounds.finals.appendChild(championNode);
+    updateBracketViewWithFixtures();
 
     // --- モバイル用ラウンドタブ（初回のみ初期化）---
     const roundTabs = document.querySelectorAll(".bracket-round-tab");
@@ -520,6 +526,16 @@ document.addEventListener("DOMContentLoaded", () => {
     "Côte d'Ivoire": 'コートジボワール',
     'Czechia': 'チェコ',
     'IR Iran': 'イラン',
+    'United States of America': 'アメリカ',
+  };
+
+  const KNOCKOUT_STAGE_TO_SLUG = {
+    'ラウンド32': 'round-of-32',
+    'ラウンド16': 'round-of-16',
+    '準々決勝': 'quarterfinals',
+    '準決勝': 'semifinals',
+    '3位決定戦': '3rd-place-match',
+    '決勝': 'final'
   };
 
   function resolveEspnName(name) {
@@ -584,17 +600,78 @@ document.addEventListener("DOMContentLoaded", () => {
     return map;
   }
 
+  function getMatchUtcMinuteKey(match) {
+    return getJstMatchDate(match.date, match.time).toISOString().slice(0, 16);
+  }
+
+  function buildKnockoutEventMap(events) {
+    const byStageAndTime = {};
+    events.forEach(ev => {
+      if (!ev?.date || !ev?.season?.slug) return;
+      const key = `${ev.season.slug}||${ev.date.slice(0, 16)}`;
+      if (!byStageAndTime[key]) byStageAndTime[key] = ev;
+    });
+
+    const map = {};
+    KNOCKOUT_MATCHES.forEach(match => {
+      const slug = KNOCKOUT_STAGE_TO_SLUG[match.stage];
+      if (!slug) return;
+      const key = `${slug}||${getMatchUtcMinuteKey(match)}`;
+      if (byStageAndTime[key]) map[match.id] = byStageAndTime[key];
+    });
+    return map;
+  }
+
+  function getMatchEvent(match, fMap, koMap) {
+    if (match.id.startsWith('ko-') && koMap?.[match.id]) return koMap[match.id];
+    return fMap[`${match.teamA}||${match.teamB}`] || null;
+  }
+
+  function getResolvedTeamsForMatch(match, ev) {
+    if (!ev) {
+      return {
+        teamA: match.teamA,
+        teamB: match.teamB,
+        flagA: TEAMS[match.teamA]?.flag || '🏳️',
+        flagB: TEAMS[match.teamB]?.flag || '🏳️',
+        isHomeA: true
+      };
+    }
+
+    const comp = ev.competitions?.[0];
+    const home = comp?.competitors?.find(c => c.homeAway === 'home');
+    const away = comp?.competitors?.find(c => c.homeAway === 'away');
+    const homeJa = resolveEspnName(home?.team?.displayName || '');
+    const awayJa = resolveEspnName(away?.team?.displayName || '');
+    const isKnownPair = homeJa === match.teamA || awayJa === match.teamA;
+
+    const teamA = isKnownPair ? match.teamA : (homeJa || match.teamA);
+    const teamB = isKnownPair ? match.teamB : (awayJa || match.teamB);
+    const isHomeA = homeJa === teamA;
+
+    return {
+      teamA,
+      teamB,
+      flagA: TEAMS[teamA]?.flag || '🏳️',
+      flagB: TEAMS[teamB]?.flag || '🏳️',
+      isHomeA
+    };
+  }
+
   let fixtureMap = null;
+  let knockoutFixtureById = null;
   let liveRefreshTimer = null;
 
   async function loadFixtureMap(forceRefresh = false) {
     if (forceRefresh) {
       Object.keys(localStorage).filter(k => k.startsWith('wc_es_') || k.startsWith('wc_d_')).forEach(k => localStorage.removeItem(k));
       fixtureMap = null;
+      knockoutFixtureById = null;
     }
     if (!fixtureMap) {
       const events = await fetchAllFixtures();
       fixtureMap = buildFixtureMap(events);
+      knockoutFixtureById = buildKnockoutEventMap(events);
       const hasLive = events.some(ev =>
         ev.competitions?.[0]?.status?.type?.state === 'in'
       );
@@ -602,6 +679,8 @@ document.addEventListener("DOMContentLoaded", () => {
         liveRefreshTimer = setInterval(async () => {
           await loadFixtureMap(true);
           if (activeTab === 'schedule') { renderMatchesList(); updateMatchScores(); }
+          if (activeTab === 'favorites') { renderFavoritesList(); }
+          if (activeTab === 'bracket') { renderBracket(); }
           if (activeTab === 'standings') renderStandingsTab();
         }, 5 * 60 * 1000);
       } else if (!hasLive && liveRefreshTimer) {
@@ -620,18 +699,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const match = [...GROUP_STAGE_MATCHES, ...KNOCKOUT_MATCHES].find(m => m.id === mid);
         if (!match) return;
 
-        const ev = fMap[`${match.teamA}||${match.teamB}`];
+        const ev = getMatchEvent(match, fMap, knockoutFixtureById);
         if (!ev) return;
 
         const comp = ev.competitions?.[0];
+        const teams = getResolvedTeamsForMatch(match, ev);
+        const nameAEl = card.querySelector('[data-team-slot="teamA"] .team-name');
+        const nameBEl = card.querySelector('[data-team-slot="teamB"] .team-name');
+        const flagAEl = card.querySelector('[data-team-slot="teamA"] .team-flag');
+        const flagBEl = card.querySelector('[data-team-slot="teamB"] .team-flag');
+        if (nameAEl) nameAEl.textContent = teams.teamA;
+        if (nameBEl) nameBEl.textContent = teams.teamB;
+        if (flagAEl) flagAEl.textContent = teams.flagA;
+        if (flagBEl) flagBEl.textContent = teams.flagB;
+
         const state = comp?.status?.type?.state;
         if (state !== 'in' && state !== 'post') return;
 
         const home = comp.competitors?.find(c => c.homeAway === 'home');
         const away = comp.competitors?.find(c => c.homeAway === 'away');
-        const isHomeA = resolveEspnName(home?.team?.displayName) === match.teamA;
-        const gA = isHomeA ? (home?.score ?? '—') : (away?.score ?? '—');
-        const gB = isHomeA ? (away?.score ?? '—') : (home?.score ?? '—');
+        const gA = teams.isHomeA ? (home?.score ?? '—') : (away?.score ?? '—');
+        const gB = teams.isHomeA ? (away?.score ?? '—') : (home?.score ?? '—');
 
         const statusName = comp?.status?.type?.name || '';
         const isLive = state === 'in';
@@ -673,6 +761,70 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     } catch (_) { /* スコア表示はオプション機能なのでエラーを無視 */ }
+  }
+
+  async function updateBracketViewWithFixtures() {
+    try {
+      const fMap = await loadFixtureMap();
+      document.querySelectorAll('.bracket-match-node[data-id]').forEach(node => {
+        const mid = node.dataset.id;
+        const match = KNOCKOUT_MATCHES.find(m => m.id === mid);
+        if (!match) return;
+
+        const ev = getMatchEvent(match, fMap, knockoutFixtureById);
+        if (!ev) return;
+
+        const comp = ev.competitions?.[0];
+        const teams = getResolvedTeamsForMatch(match, ev);
+        const slotA = node.querySelector('[data-team-slot="teamA"]');
+        const slotB = node.querySelector('[data-team-slot="teamB"]');
+        const nameA = node.querySelector('[data-team-slot="teamA"] .bracket-team-text');
+        const nameB = node.querySelector('[data-team-slot="teamB"] .bracket-team-text');
+        const flagA = node.querySelector('[data-team-slot="teamA"] .bracket-team-flag');
+        const flagB = node.querySelector('[data-team-slot="teamB"] .bracket-team-flag');
+        const scoreA = node.querySelector('[data-score-slot="teamA"]');
+        const scoreB = node.querySelector('[data-score-slot="teamB"]');
+        const status = node.querySelector('[data-status-slot]');
+
+        if (nameA) nameA.textContent = teams.teamA;
+        if (nameB) nameB.textContent = teams.teamB;
+        if (flagA) flagA.textContent = teams.flagA;
+        if (flagB) flagB.textContent = teams.flagB;
+        slotA?.classList.remove('placeholder');
+        slotB?.classList.remove('placeholder');
+
+        const state = comp?.status?.type?.state;
+        if (state !== 'in' && state !== 'post') return;
+
+        const home = comp.competitors?.find(c => c.homeAway === 'home');
+        const away = comp.competitors?.find(c => c.homeAway === 'away');
+        const gA = teams.isHomeA ? (home?.score ?? '—') : (away?.score ?? '—');
+        const gB = teams.isHomeA ? (away?.score ?? '—') : (home?.score ?? '—');
+        if (scoreA) scoreA.textContent = gA;
+        if (scoreB) scoreB.textContent = gB;
+
+        if (status) {
+          const statusName = comp?.status?.type?.name || '';
+          const badgeText = statusName === 'STATUS_HALFTIME' ? 'HT' : state === 'in' ? 'LIVE' : '終了';
+          status.textContent = badgeText;
+          status.className = `bracket-status score-badge ${state === 'in' ? 'live' : 'ft'}`;
+        }
+
+        if (state === 'post') {
+          const nA = parseInt(gA);
+          const nB = parseInt(gB);
+          if (!isNaN(nA) && !isNaN(nB)) {
+            if (nA > nB) {
+              slotA?.classList.add('team-winner');
+              slotB?.classList.add('team-loser');
+            } else if (nB > nA) {
+              slotB?.classList.add('team-winner');
+              slotA?.classList.add('team-loser');
+            }
+          }
+        }
+      });
+    } catch (_) { /* トーナメント表示は補助機能のため失敗時は無視 */ }
   }
 
   function computeStandings(fMap) {

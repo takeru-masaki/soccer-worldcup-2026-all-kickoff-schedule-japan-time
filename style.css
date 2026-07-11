@@ -760,10 +760,16 @@ body {
 .bracket-match-info {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 10px;
   color: var(--color-text-muted);
   font-weight: 600;
   padding: 0 4px;
+  gap: 8px;
+}
+
+.bracket-status {
+  margin-left: auto;
 }
 
 .bracket-card {
@@ -778,6 +784,8 @@ body {
 .bracket-team-slot {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 8px;
   border-radius: 6px;
   font-size: 12px;
@@ -790,6 +798,27 @@ body {
 .bracket-team-slot.placeholder {
   color: var(--color-text-muted);
   font-weight: 500;
+}
+
+.bracket-team-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bracket-team-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bracket-team-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  min-width: 20px;
+  text-align: right;
 }
 
 /* Bracket branch lines */
