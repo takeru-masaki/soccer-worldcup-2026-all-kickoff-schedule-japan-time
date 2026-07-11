@@ -1,5 +1,5 @@
 // Service Worker for W杯2026 Schedule App
-const CACHE_NAME = 'wc2026-v1';
+const CACHE_NAME = 'wc2026-v2';
 
 // キャッシュするアセット（アプリのコア）
 const STATIC_ASSETS = [
@@ -44,6 +44,22 @@ self.addEventListener('activate', event => {
 // フェッチ戦略
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+
+  // HTMLナビゲーションは常に最新を優先し、オフライン時のみキャッシュを使う
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put('./index.html', clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match('./index.html').then(cached => cached || caches.match(event.request)))
+    );
+    return;
+  }
 
   // ESPN APIはネットワーク優先（スコア更新のため）、失敗したらキャッシュ
   if (url.hostname.includes('espn.com')) {
